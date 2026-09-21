@@ -52,6 +52,7 @@ def init_db() -> None:
         image_quality_flag TEXT,
         rotation_degrees INTEGER DEFAULT 0,
         text_length INTEGER DEFAULT 0,
+        extracted_text TEXT,
         original_text TEXT,
         ocr_text TEXT,
         extraction_source TEXT DEFAULT 'Text Layer'
@@ -95,12 +96,26 @@ def init_db() -> None:
         cur.execute("ALTER TABLE page_analysis ADD COLUMN rotation_degrees INTEGER DEFAULT 0")
     if "text_length" not in page_columns:
         cur.execute("ALTER TABLE page_analysis ADD COLUMN text_length INTEGER DEFAULT 0")
+    if "extracted_text" not in page_columns:
+        cur.execute("ALTER TABLE page_analysis ADD COLUMN extracted_text TEXT")
     if "original_text" not in page_columns:
         cur.execute("ALTER TABLE page_analysis ADD COLUMN original_text TEXT")
     if "ocr_text" not in page_columns:
         cur.execute("ALTER TABLE page_analysis ADD COLUMN ocr_text TEXT")
     if "extraction_source" not in page_columns:
         cur.execute("ALTER TABLE page_analysis ADD COLUMN extraction_source TEXT DEFAULT 'Text Layer'")
+    cur.execute(
+        """
+        UPDATE page_analysis
+        SET extracted_text = CASE
+            WHEN extraction_source = 'OCR Fallback' AND COALESCE(ocr_text, '') != '' THEN ocr_text
+            WHEN COALESCE(original_text, '') != '' THEN original_text
+            WHEN COALESCE(text_preview, '') != '' THEN text_preview
+            ELSE ''
+        END
+        WHERE extracted_text IS NULL OR extracted_text = ''
+        """
+    )
     document_columns = {row[1] for row in cur.execute("PRAGMA table_info(documents)").fetchall()}
     if "corporation_type" not in document_columns:
         cur.execute("ALTER TABLE documents ADD COLUMN corporation_type TEXT")
@@ -154,14 +169,21 @@ def replace_document_analysis(document_id: int, pages: List[Dict], validations: 
     for table in ["page_analysis", "validations", "extracted_figures"]:
         cur.execute(f"DELETE FROM {table} WHERE document_id = ?", (document_id,))
     for page in pages:
+        extraction_source = page.get("extraction_source", "Text Layer")
+        extracted_text = page.get("extracted_text") or page.get("text")
+        if not extracted_text:
+            if extraction_source == "OCR Fallback" and page.get("ocr_text"):
+                extracted_text = page.get("ocr_text")
+            else:
+                extracted_text = page.get("original_text") or page.get("text_preview", "")
         cur.execute(
             """
             INSERT INTO page_analysis (
                 document_id, page_number, page_type, orientation, text_preview,
                 detected_company_match, detected_period_match, image_quality_flag,
-                rotation_degrees, text_length, original_text, ocr_text, extraction_source
+                rotation_degrees, text_length, extracted_text, original_text, ocr_text, extraction_source
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 document_id,
@@ -174,9 +196,10 @@ def replace_document_analysis(document_id: int, pages: List[Dict], validations: 
                 page.get("image_quality_flag"),
                 page.get("rotation_degrees", page.get("rotation", 0)) or 0,
                 page.get("text_length", len(str(page.get("text_preview") or "").strip())),
+                extracted_text,
                 page.get("original_text", page.get("text_preview", "")),
                 page.get("ocr_text", ""),
-                page.get("extraction_source", "Text Layer"),
+                extraction_source,
             ),
         )
     for item in validations:

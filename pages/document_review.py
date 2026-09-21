@@ -83,7 +83,7 @@ def _render_afs_completeness_check(pages, document):
     if not is_afs_submission(document):
         return
 
-    completeness = evaluate_afs_completeness(pages)
+    completeness = evaluate_afs_completeness(pages, document)
     bir = evaluate_bir_filing(pages)
     st.subheader("AFS Completeness Check")
     if completeness["status"] == "Passed":

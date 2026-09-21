@@ -26,9 +26,9 @@ def normalize_label(raw_label: str, mapping: Optional[Dict[str, List[str]]] = No
 
 _SAFE_NUMERIC_PATTERN = re.compile(
     r"^\s*(?:"
-    r"-?(?:₱\s*)?(?:(?:\d+)|(?:\d{1,3}(?:,\d{3})+))(?:\.\d+)?"
+    r"-?(?:[₱Pp]\s*)?(?:(?:\d+)|(?:\d{1,3}(?:,\d{3})+))(?:\.\d+)?"
     r"|"
-    r"\(\s*(?:₱\s*)?(?:(?:\d+)|(?:\d{1,3}(?:,\d{3})+))(?:\.\d+)?\s*\)"
+    r"\(\s*(?:[₱Pp]\s*)?(?:(?:\d+)|(?:\d{1,3}(?:,\d{3})+))(?:\.\d+)?\s*\)"
     r")\s*$"
 )
 
@@ -45,7 +45,7 @@ def parse_amount(displayed_value: str, unit_basis: str = "Pesos") -> Optional[fl
     safe, _ = validate_numeric_string(displayed_value)
     if not safe:
         return None
-    text = str(displayed_value).replace("₱", "").replace(",", "").strip()
+    text = str(displayed_value).replace("₱", "").replace("P", "").replace("p", "").replace(",", "").strip()
     negative = "(" in text and ")" in text
     text = text.replace("(", "").replace(")", "")
     match = re.search(r"-?\d+(?:\.\d+)?", text)
@@ -64,8 +64,14 @@ def parse_amount(displayed_value: str, unit_basis: str = "Pesos") -> Optional[fl
 
 def detect_unit_basis(text: str) -> str:
     lowered = text.lower()
-    if "amounts in thousands" in lowered or "in thousands" in lowered:
-        return "Thousands"
-    if "amounts in millions" in lowered or "in millions" in lowered:
+    if (
+        re.search(r"\b(?:amounts?\s+)?in\s+millions?\b", lowered)
+        or re.search(r"\bmillions?\s+philippine\s+pesos\b", lowered)
+    ):
         return "Millions"
+    if (
+        re.search(r"\b(?:amounts?\s+)?in\s+thousands?\b", lowered)
+        or re.search(r"\bthousands?\s+philippine\s+pesos\b", lowered)
+    ):
+        return "Thousands"
     return "Pesos"

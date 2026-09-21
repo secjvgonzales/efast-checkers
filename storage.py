@@ -195,6 +195,7 @@ def _seed_one_demo_document(entry: Dict) -> int:
             text = page["text_preview"]
             pages.append({
                 **page,
+                "extracted_text": page.get("extracted_text") or page.get("text") or text,
                 "detected_company_match": metadata["company_name"].replace(",", "")[:18].lower()
                     in text.replace(",", "").lower(),
                 "detected_period_match": str(metadata["period_covered_year"]) in text,
@@ -253,6 +254,7 @@ def ensure_demo_document(report_type: str = "AFS") -> int:
         text = page["text_preview"]
         pages.append({
             **page,
+            "extracted_text": page.get("extracted_text") or page.get("text") or text,
             "detected_company_match": metadata["company_name"].replace(",", "")[:18].lower()
                 in text.replace(",", "").lower(),
             "detected_period_match": str(metadata["period_covered_year"]) in text,

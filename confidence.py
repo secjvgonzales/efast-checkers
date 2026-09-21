@@ -41,7 +41,13 @@ EXACT_SUPPORTED_LABELS = {
 def _page_quality_points(figure: Dict, page: Optional[Dict]) -> int:
     if not page:
         return 0
-    text = str(page.get("text") or page.get("text_preview") or "").strip()
+    text = str(
+        page.get("extracted_text")
+        or page.get("text")
+        or page.get("original_text")
+        or page.get("text_preview")
+        or ""
+    ).strip()
     if not text and not page.get("text_length"):
         return 0
     flag = str(page.get("image_quality_flag") or quality_flag(text))
@@ -115,6 +121,35 @@ def _numeric_parse_points(figure: Dict) -> int:
     return 0
 
 
+def _displayed_value_is_year_token(figure: Dict) -> bool:
+    displayed = str(figure.get("displayed_value") or "").strip().replace("₱", "").replace("P", "").replace("p", "").replace(",", "").strip(" .;:")
+    if not re.fullmatch(r"(?:19|20)\d{2}", displayed):
+        return False
+    year = figure.get("fiscal_year")
+    if year and int(displayed) == int(year):
+        return True
+    return 1900 <= int(displayed) <= 2100
+
+
+def _source_authority_points(figure: Dict) -> int:
+    authority = int(figure.get("source_authority") or 0)
+    statement_type = str(figure.get("statement_type") or "")
+    if authority >= 3 or statement_type in {
+        "Statement of Financial Position / Balance Sheet",
+        "Statement of Financial Position",
+        "Balance Sheet",
+        "Statement of Comprehensive Income",
+        "Statement of Income / Receipts and Expenses",
+        "Statement of Income",
+        "Income Statement",
+        "Statement of Operations",
+    }:
+        return 5
+    if authority == 2 or "Notes" in statement_type:
+        return 2
+    return 0
+
+
 def _unit_basis_points(figure: Dict, page: Optional[Dict]) -> int:
     unit_basis = str(figure.get("unit_basis") or "").strip()
     if not unit_basis:
@@ -123,6 +158,8 @@ def _unit_basis_points(figure: Dict, page: Optional[Dict]) -> int:
         str(value or "")
         for value in (
             (page or {}).get("text"),
+            (page or {}).get("extracted_text"),
+            (page or {}).get("original_text"),
             (page or {}).get("text_preview"),
             figure.get("source_snippet"),
         )
@@ -170,7 +207,7 @@ def calculate_figure_confidence(figure: Dict, page: Optional[Dict] = None) -> Di
         "Fiscal Year": _fiscal_year_points(figure),
         "Numeric Parse": _numeric_parse_points(figure),
         "Unit Basis": _unit_basis_points(figure, page),
-        "Source Evidence": _source_evidence_points(figure),
+        "Source Evidence": _source_evidence_points(figure) + _source_authority_points(figure),
     }
     raw_score = sum(evidence.values())
     caps = []
@@ -181,11 +218,20 @@ def calculate_figure_confidence(figure: Dict, page: Optional[Dict] = None) -> Di
     if evidence["Page Quality"] <= 5:
         raw_score = min(raw_score, 69)
         caps.append("Failed or very poor source-page readability")
+    if _displayed_value_is_year_token(figure):
+        raw_score = min(raw_score, 49)
+        caps.append("Displayed value looks like a fiscal-year header, not a monetary amount")
+    if figure.get("scope_warning"):
+        raw_score = min(raw_score, 59)
+        caps.append("Source context appears scoped to a joint venture, segment, subsidiary, or other non-headline disclosure")
+    if int(figure.get("source_authority") or 0) <= 1 and str(figure.get("statement_type") or "") == "Other / Unclassified":
+        raw_score = min(raw_score, 74)
+        caps.append("Low-authority or unclassified source page")
 
     score = max(0, min(100, int(raw_score)))
     classification = _classification(score)
     review_status = INITIAL_REVIEW_STATUSES[classification]
-    if numeric_parse == 0:
+    if numeric_parse == 0 or _displayed_value_is_year_token(figure):
         review_status = "Check Source"
 
     return {

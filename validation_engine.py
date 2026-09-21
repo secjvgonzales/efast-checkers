@@ -12,7 +12,7 @@ AFS_COMPONENT_DEFINITIONS = [
         "page_types": {"statement of management's responsibility"},
         "strong": [
             r"statement\s+of\s+management(?:'|’)?s?\s+responsibility",
-            r"management(?:'|’)?s?\s+responsibility",
+            r"management(?:'|’)?s?\s+responsibility\s+for\s+financial\s+statements",
         ],
         "weak": [r"\bresponsibility\b"],
     },
@@ -20,7 +20,7 @@ AFS_COMPONENT_DEFINITIONS = [
         "name": "Independent Auditor's Report",
         "page_types": {"independent auditor's report"},
         "strong": [
-            r"independent\s+auditor",
+            r"independent\s+auditor(?:'|’)?s?\s+report",
             r"auditor(?:'|’)?s?\s+report",
             r"we\s+have\s+audited",
         ],
@@ -46,43 +46,40 @@ AFS_COMPONENT_DEFINITIONS = [
         "strong": [
             r"statement(?:s)?\s+of\s+(?:profit\s+or\s+loss|income|operations)",
             r"\bincome\s+statement\b",
-            r"\bprofit\s+or\s+loss\b",
         ],
-        "weak": [r"\bnet\s+(?:income|loss)\b", r"\bgross\s+revenue\b"],
+        "weak": [r"\bprofit\s+or\s+loss\b", r"\bnet\s+(?:income|loss)\b", r"\bgross\s+revenue\b"],
     },
     {
         "name": "Other Comprehensive Income",
         "page_types": {"statement of comprehensive income", "other comprehensive income"},
         "strong": [
-            r"other\s+comprehensive\s+income",
             r"statement(?:s)?\s+of\s+comprehensive\s+income",
-            r"\bcomprehensive\s+income\b",
+            r"statement(?:s)?\s+of\s+profit\s+or\s+loss\s+and\s+other\s+comprehensive\s+income",
         ],
-        "weak": [r"\bcomprehensive\b"],
+        "weak": [r"\bother\s+comprehensive\s+income\b", r"\bcomprehensive\s+income\b", r"\bcomprehensive\b"],
     },
     {
         "name": "Statement of Changes in Equity",
         "page_types": {"statement of changes in equity / fund balance", "statement of changes in equity"},
         "strong": [
             r"statement(?:s)?\s+of\s+changes\s+in\s+equity",
-            r"\bchanges\s+in\s+equity\b",
         ],
-        "weak": [r"\bfund\s+balance\b", r"\bshareholders?'?\s+equity\b"],
+        "weak": [r"\bchanges\s+in\s+equity\b", r"\bfund\s+balance\b", r"\bshareholders?'?\s+equity\b"],
     },
     {
         "name": "Statement of Cash Flows",
         "page_types": {"statement of cash flows"},
         "strong": [
             r"statement(?:s)?\s+of\s+cash\s+flows",
-            r"\bcash\s+flows\b",
         ],
-        "weak": [r"\boperating\s+activities\b", r"\bfinancing\s+activities\b"],
+        "weak": [r"\bcash\s+flows\b", r"\boperating\s+activities\b", r"\bfinancing\s+activities\b"],
     },
     {
         "name": "Notes to Financial Statements",
         "page_types": {"notes to financial statements"},
         "strong": [
             r"notes\s+to\s+financial\s+statements",
+            r"notes\s+to\s+(?:the\s+)?consolidated\s+financial\s+statements",
             r"summary\s+of\s+significant\s+accounting",
             r"basis\s+of\s+preparation",
         ],
@@ -100,26 +97,106 @@ AUDITOR_EXCLUDED_COMPONENTS = {
     "Statement of Cash Flows",
 }
 
-BIR_EVIDENCE_PATTERNS = [
+BIR_STRONG_EVIDENCE_PATTERNS = [
+    r"\bproof\s+of\s+filing\b",
+    r"\breceived\s+for\s+filing\b",
+    r"\bbir\s+received\b",
+    r"\bfiled\s+with\s+the\s+bureau\s+of\s+internal\s+revenue\b(?=.{0,120}\b(?:confirmation|receipt|received|reference\s+(?:no\.?|number)))",
+    r"\beafs\s+submission\s+confirmation\b",
+    r"\b(?:filing|transaction)\s+reference\s+(?:no\.?|number)\b(?=.{0,120}\b(?:confirmation|received|receipt|filing))",
+    r"\b(?:date\s+received|received\s+date|received\s+by)\b(?=.{0,120}\b(?:bir|bureau\s+of\s+internal\s+revenue|eafs|filing|receipt))",
+]
+
+BIR_CONTEXT_PATTERNS = [
     r"\bbureau\s+of\s+internal\s+revenue\b",
     r"\bbir\b",
+    r"\beafs\b",
     r"\bincome\s+tax\s+return\b",
     r"\bannual\s+income\s+tax\s+return\b",
     r"\btax\s+return\b",
-    r"\bproof\s+of\s+filing\b",
-    r"\breceived\s+for\s+filing\b",
 ]
 
 PAGE_RULES = [
-    ("Statement of Management's Responsibility", ["management", "responsibility", "financial statements"]),
-    ("Cover Sheet", ["cover sheet", "sec registration", "company information"]),
-    ("Independent Auditor's Report", ["independent auditor", "we have audited", "auditor's report", "auditor\u2019s report"]),
-    ("Statement of Financial Position / Balance Sheet", ["financial position", "balance sheet", "total assets", "total liabilities"]),
-    ("Statement of Income / Receipts and Expenses", ["statement of income", "receipts and expenses", "net income", "gross revenue"]),
-    ("Statement of Comprehensive Income", ["comprehensive income", "other comprehensive"]),
-    ("Statement of Changes in Equity / Fund Balance", ["changes in equity", "fund balance", "retained earnings"]),
-    ("Statement of Cash Flows", ["cash flows", "operating activities", "financing activities"]),
-    ("Notes to Financial Statements", ["notes to financial statements", "summary of significant accounting", "basis of preparation"]),
+    ("Statement of Management's Responsibility", [
+        r"statement\s+of\s+management(?:'|’)?s?\s+responsibility",
+        r"management(?:'|’)?s?\s+responsibility\s+for\s+financial\s+statements",
+    ]),
+    ("Cover Sheet", [
+        r"\bcover\s+sheet\b",
+        r"\bcontents\b",
+        r"\btable\s+of\s+contents\b",
+    ]),
+    ("Independent Auditor's Report", [
+        r"independent\s+auditor(?:'|’)?s?\s+report",
+        r"auditor(?:'|’)?s?\s+report",
+    ]),
+    ("Statement of Financial Position / Balance Sheet", [
+        r"statement(?:s)?\s+of\s+financial\s+position",
+        r"\bbalance\s+sheet\b",
+    ]),
+    ("Statement of Income / Receipts and Expenses", [
+        r"statement(?:s)?\s+of\s+(?:profit\s+or\s+loss|income|operations)",
+        r"\bincome\s+statement\b",
+    ]),
+    ("Statement of Comprehensive Income", [
+        r"statement(?:s)?\s+of\s+comprehensive\s+income",
+        r"statement(?:s)?\s+of\s+profit\s+or\s+loss\s+and\s+other\s+comprehensive\s+income",
+    ]),
+    ("Statement of Changes in Equity / Fund Balance", [
+        r"statement(?:s)?\s+of\s+changes\s+in\s+equity",
+    ]),
+    ("Statement of Cash Flows", [
+        r"statement(?:s)?\s+of\s+cash\s+flows",
+    ]),
+    ("Notes to Financial Statements", [
+        r"notes\s+to\s+(?:the\s+)?financial\s+statements",
+        r"notes\s+to\s+(?:the\s+)?consolidated\s+financial\s+statements",
+        r"summary\s+of\s+significant\s+accounting",
+        r"basis\s+of\s+preparation",
+    ]),
+]
+
+AUTHORITATIVE_PERIOD_PATTERNS = [
+    r"\byears?\s+ended\b",
+    r"\bfor\s+the\s+years?\s+ended\b",
+    r"\bfor\s+the\s+fiscal\s+years?\s+ended\b",
+    r"\bas\s+(?:of|at)\b",
+    r"\bfiscal\s+period\s+ended\b",
+    r"\bperiod\s+covered\b",
+]
+
+INCIDENTAL_YEAR_CONTEXT_PATTERNS = [
+    r"\baccreditation\b",
+    r"\bvalid\s+until\b",
+    r"\bvalidity\b",
+    r"\bdue\b",
+    r"\bmaturit(?:y|ies)\b",
+    r"\bexpiry\b|\bexpires?\b|\bexpiration\b",
+    r"\bforecast\b|\bestimat(?:e|ed|es)\b",
+    r"\bcommitments?\b",
+    r"\bfuture\b",
+    r"\bsubsequent\b",
+    r"\beffective\s+beginning\b",
+]
+
+PRIMARY_AFS_PAGE_TYPES = {
+    "statement of financial position / balance sheet",
+    "statement of financial position",
+    "balance sheet",
+    "statement of income / receipts and expenses",
+    "statement of income",
+    "income statement",
+    "statement of operations",
+    "statement of comprehensive income",
+    "statement of changes in equity / fund balance",
+    "statement of changes in equity",
+    "statement of cash flows",
+}
+
+SUPPLEMENTARY_AUDITOR_PATTERNS = [
+    r"\bsupplementary\s+schedules?\b",
+    r"\bfinancial\s+soundness\s+indicators?\b",
+    r"\bcomponents\s+of\s+financial\s+soundness\b",
 ]
 
 GIS_PAGE_TYPES = {
@@ -271,10 +348,237 @@ def fuzzy_company_match(source: str, target: str) -> bool:
     return SequenceMatcher(None, source_clean, target_clean).ratio() >= 0.74
 
 
+def _normalized_text(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip().lower()
+
+
+def _heading_text(text: str) -> str:
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    line_region = " ".join(lines[:12])
+    char_region = str(text or "")[:800]
+    return _normalized_text(" ".join([line_region, char_region]))
+
+
+def _is_contents_page(text: str) -> bool:
+    heading = _heading_text(text)
+    if not re.search(r"\b(?:contents|table\s+of\s+contents|index)\b", heading):
+        return False
+    statement_refs = [
+        r"statement(?:s)?\s+of\s+financial\s+position",
+        r"statement(?:s)?\s+of\s+(?:profit\s+or\s+loss|income)",
+        r"statement(?:s)?\s+of\s+comprehensive\s+income",
+        r"statement(?:s)?\s+of\s+changes\s+in\s+equity",
+        r"statement(?:s)?\s+of\s+cash\s+flows",
+    ]
+    return sum(bool(re.search(pattern, heading)) for pattern in statement_refs) >= 2
+
+
+def _has_heading_evidence(text: str, patterns: List[str]) -> bool:
+    heading = _heading_text(text)
+    full_text = _normalized_text(text)
+    return any(re.search(pattern, heading) for pattern in patterns) or any(
+        re.search(r"^\s*" + pattern, full_text) for pattern in patterns
+    )
+
+
+def _top_heading_text(text: str, line_limit: int = 4, char_limit: int = 300) -> str:
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    line_region = " ".join(lines[:line_limit])
+    char_region = str(text or "")[:char_limit]
+    return _normalized_text(" ".join([line_region, char_region]))
+
+
+def _starts_with_heading(text: str, patterns: List[str]) -> bool:
+    heading = _top_heading_text(text)
+    return any(re.search(r"^\s*" + pattern, heading) for pattern in patterns)
+
+
+def _upper_region_has_heading(text: str, patterns: List[str], line_limit: int = 10, char_limit: int = 1200) -> bool:
+    heading = _top_heading_text(text, line_limit=line_limit, char_limit=char_limit)
+    return any(re.search(pattern, heading) for pattern in patterns)
+
+
+def _has_statement_title_line(text: str, patterns: List[str], line_limit: int = 8) -> bool:
+    lines = [line.strip().lower() for line in str(text or "").splitlines() if line.strip()]
+    for line in lines[:line_limit]:
+        normalized = re.sub(r"\s+", " ", line)
+        if any(re.search(r"^(?:consolidated\s+|parent\s+company\s+)?" + pattern, normalized) for pattern in patterns):
+            return True
+    return False
+
+
+def _is_notarial_opening(text: str) -> bool:
+    opening = _top_heading_text(text, line_limit=6, char_limit=500)
+    patterns = [
+        r"\bnotarial\s+certificate\b",
+        r"\backnowledg(?:e)?ment\b",
+        r"\bsubscribed\s+and\s+sworn\b",
+        r"\bnotary\s+public\b",
+        r"\bdoc\.?\s*no\.?\b",
+        r"\bpage\s+no\.?\b",
+        r"\bbook\s+no\.?\b",
+        r"\bseries\s+of\b",
+    ]
+    return any(re.search(pattern, opening) for pattern in patterns)
+
+
+def _has_smr_heading(text: str, patterns: List[str]) -> bool:
+    if not _upper_region_has_heading(text, patterns):
+        return False
+    return not _is_notarial_opening(text)
+
+
+def _is_supplementary_auditor_report(text: str) -> bool:
+    heading = _top_heading_text(text, line_limit=8, char_limit=900)
+    return any(re.search(pattern, heading) for pattern in SUPPLEMENTARY_AUDITOR_PATTERNS)
+
+
+def _has_financial_position_structure(text: str) -> bool:
+    normalized = _normalized_text(text)
+    markers = [
+        r"\bassets\b",
+        r"\bcurrent\s+assets\b",
+        r"\bnon(?:current|\s+current)\s+assets\b",
+        r"\btotal\s+assets\b",
+        r"\bliabilities\b",
+        r"\bcurrent\s+liabilities\b",
+        r"\bnon(?:current|\s+current)\s+liabilities\b",
+        r"\btotal\s+liabilities\b",
+        r"\bequity\b",
+        r"\btotal\s+liabilities\s+and\s+equity\b",
+    ]
+    score = sum(bool(re.search(pattern, normalized)) for pattern in markers)
+    has_assets = bool(re.search(r"\bassets\b", normalized))
+    has_liabilities = bool(re.search(r"\bliabilities\b", normalized))
+    has_equity = bool(re.search(r"\bequity\b", normalized))
+    return score >= 3 and has_assets and has_liabilities and has_equity
+
+
+def _has_income_structure(text: str) -> bool:
+    normalized = _normalized_text(text)
+    markers = [
+        r"\b(?:sales|revenues?)\b",
+        r"\bcost\s+of\s+sales\b",
+        r"\bgross\s+income\b",
+        r"\b(?:expenses|expense)\b",
+        r"\boperating\s+income\b",
+        r"\bincome\s+before\s+(?:income\s+)?tax\b",
+        r"\bprovision\s+for\s+income\s+tax\b",
+        r"\bnet\s+(?:income|loss)\b",
+    ]
+    score = sum(bool(re.search(pattern, normalized)) for pattern in markers)
+    has_performance = bool(re.search(r"\b(?:sales|revenues?)\b", normalized))
+    has_result = bool(re.search(r"\b(?:net\s+(?:income|loss)|income\s+before\s+(?:income\s+)?tax|operating\s+income)\b", normalized))
+    return score >= 3 and has_performance and has_result
+
+
+def _has_oci_structure(text: str) -> bool:
+    normalized = _normalized_text(text)
+    return bool(
+        re.search(r"\bother\s+comprehensive\s+income\b", normalized)
+        and re.search(r"\btotal\s+comprehensive\s+income\b", normalized)
+    )
+
+
+def _has_changes_in_equity_structure(text: str) -> bool:
+    normalized = _normalized_text(text)
+    markers = [
+        r"\bcapital\s+stock\b",
+        r"\bpaid[-\s]?in\s+capital\b",
+        r"\bretained\s+earnings\b",
+        r"\btreasury\s+(?:stock|shares?)\b",
+        r"\bnon[-\s]?controlling\s+interests?\b",
+        r"\btotal\s+equity\b",
+        r"\bequity\s+holders\b",
+        r"\bbalances?\s+at\s+(?:january|december)\b",
+        r"\btotal\s+comprehensive\s+(?:income|loss)\b",
+        r"\bcash\s+dividends?\b",
+    ]
+    return sum(bool(re.search(pattern, normalized)) for pattern in markers) >= 2
+
+
+def _has_cash_flow_structure(text: str) -> bool:
+    normalized = _normalized_text(text)
+    markers = [
+        r"\boperating\s+activities\b",
+        r"\binvesting\s+activities\b",
+        r"\bfinancing\s+activities\b",
+        r"\bnet\s+(?:increase|decrease)\s+in\s+cash\b",
+        r"\bcash\s+flows?\s+from\b",
+    ]
+    return sum(bool(re.search(pattern, normalized)) for pattern in markers) >= 2
+
+
+def _primary_detected(page_type: str, text: str, definition: Dict) -> bool:
+    name = definition["name"]
+    has_heading = page_type in definition["page_types"] or _has_heading_evidence(text, definition["strong"])
+    if not has_heading:
+        if name == "Statement of Profit or Loss / Statement of Income":
+            if not _has_statement_title_line(text, [
+                r"statement(?:s)?\s+of\s+comprehensive\s+income",
+                r"statement(?:s)?\s+of\s+profit\s+or\s+loss\s+and\s+other\s+comprehensive\s+income",
+            ]):
+                return False
+            comprehensive_heading = _has_heading_evidence(text, [
+                r"statement(?:s)?\s+of\s+comprehensive\s+income",
+                r"statement(?:s)?\s+of\s+profit\s+or\s+loss\s+and\s+other\s+comprehensive\s+income",
+            ])
+            return comprehensive_heading and _has_income_structure(text)
+        return False
+    if page_type not in definition["page_types"] and name in AUDITOR_EXCLUDED_COMPONENTS:
+        if not _has_statement_title_line(text, definition["strong"]):
+            return False
+    if name == "Statement of Management's Responsibility":
+        return _has_smr_heading(text, definition["strong"])
+    if name == "Independent Auditor's Report":
+        return not _is_supplementary_auditor_report(text)
+    if name == "Statement of Financial Position / Balance Sheet":
+        return _has_financial_position_structure(text)
+    if name == "Statement of Profit or Loss / Statement of Income":
+        return _has_income_structure(text)
+    if name == "Other Comprehensive Income":
+        return _has_oci_structure(text)
+    if name == "Statement of Changes in Equity":
+        return _has_changes_in_equity_structure(text)
+    if name == "Statement of Cash Flows":
+        return _has_cash_flow_structure(text)
+    return True
+
+
+def _is_confident_primary_statement(page_type: str, text: str) -> bool:
+    for definition in AFS_COMPONENT_DEFINITIONS:
+        if definition["name"] == "Notes to Financial Statements":
+            continue
+        if definition["name"] == "Independent Auditor's Report":
+            continue
+        if _primary_detected(page_type, text, definition):
+            return True
+    return False
+
+
 def classify_page(text: str) -> str:
-    lowered = (text or "").lower()
-    for page_type, keywords in PAGE_RULES:
-        if any(keyword in lowered for keyword in keywords):
+    if _is_contents_page(text):
+        return "Cover Sheet"
+    for page_type, patterns in PAGE_RULES:
+        if page_type == "Statement of Management's Responsibility" and not _has_smr_heading(text, patterns):
+            continue
+        if _has_heading_evidence(text, patterns):
+            definition = next(
+                (
+                    item for item in AFS_COMPONENT_DEFINITIONS
+                    if page_type.lower() in item["page_types"]
+                ),
+                None,
+            )
+            if definition and definition["name"] not in {
+                "Statement of Management's Responsibility",
+                "Independent Auditor's Report",
+                "Notes to Financial Statements",
+            }:
+                if not _has_statement_title_line(text, patterns):
+                    continue
+                if not _primary_detected(page_type.lower(), text, definition):
+                    continue
             return page_type
     return "Other / Unclassified"
 
@@ -336,23 +640,80 @@ def is_afs_submission(metadata: Dict) -> bool:
 def _page_evidence_text(page: Dict) -> str:
     return " ".join([
         str(page.get("page_type") or ""),
-        str(page.get("text_preview") or page.get("text") or ""),
+        _processing_text(page),
     ]).lower()
+
+
+def _processing_text(page: Dict) -> str:
+    return str(
+        page.get("extracted_text")
+        or page.get("text")
+        or page.get("original_text")
+        or page.get("text_preview")
+        or ""
+    )
 
 
 def _component_evidence(page: Dict, definition: Dict) -> str:
     page_type = str(page.get("page_type") or "").strip().lower().replace("’", "'")
+    processing_text = _processing_text(page)
+    if _is_contents_page(processing_text):
+        return ""
     if (
         definition["name"] in AUDITOR_EXCLUDED_COMPONENTS
         and page_type == "independent auditor's report"
     ):
         return ""
-    text = _page_evidence_text(page)
-    if page_type in definition["page_types"] or any(re.search(pattern, text) for pattern in definition["strong"]):
+    if definition["name"] == "Notes to Financial Statements" and _is_confident_primary_statement(page_type, processing_text):
+        return ""
+    if _primary_detected(page_type, processing_text, definition):
         return "Detected"
-    if any(re.search(pattern, text) for pattern in definition["weak"]):
-        return "Needs Review"
     return ""
+
+
+def _primary_iar_page_numbers(pages: List[Dict]) -> List[int]:
+    numbers = []
+    in_primary_report = False
+    for page in pages:
+        text = _processing_text(page)
+        page_type = str(page.get("page_type") or "").strip().lower()
+        if _is_supplementary_auditor_report(text):
+            in_primary_report = False
+            continue
+        has_iar_heading = page_type == "independent auditor's report" or _has_heading_evidence(
+            text,
+            [r"independent\s+auditor(?:'|’)?s?\s+report", r"auditor(?:'|’)?s?\s+report"],
+        )
+        if has_iar_heading:
+            in_primary_report = True
+            numbers.append(page.get("page_number"))
+            continue
+        if in_primary_report:
+            if _is_confident_primary_statement(page_type, text) or page_type == "notes to financial statements":
+                in_primary_report = False
+                continue
+            if re.search(r"\b(?:audit|auditor|audited|financial\s+statements|opinion|responsibilities)\b", _normalized_text(text)):
+                numbers.append(page.get("page_number"))
+    return numbers
+
+
+def _cash_flow_page_numbers(pages: List[Dict], definition: Dict) -> List[int]:
+    numbers = []
+    in_statement = False
+    for page in pages:
+        text = _processing_text(page)
+        page_type = str(page.get("page_type") or "").strip().lower()
+        if _primary_detected(page_type, text, definition):
+            in_statement = True
+            numbers.append(page.get("page_number"))
+            continue
+        if in_statement:
+            if page_type == "notes to financial statements" or _is_confident_primary_statement(page_type, text):
+                in_statement = False
+                continue
+            if _has_cash_flow_structure(text) or re.search(r"\b(?:operating|investing|financing)\s+activities\b", _normalized_text(text)):
+                numbers.append(page.get("page_number"))
+    return numbers
 
 
 def _gis_page_is_usable(page: Dict) -> bool:
@@ -368,7 +729,7 @@ def _gis_component_pages(pages: List[Dict], component: str) -> List[int]:
         if not _gis_page_is_usable(page):
             continue
         page_type = str(page.get("page_type") or "")
-        text = _gis_text(page.get("text_preview") or page.get("text") or "").lower()
+        text = _gis_text(_processing_text(page)).lower()
         if page_type == component or any(re.search(pattern, text) for pattern in patterns):
             matches.append(page.get("page_number"))
     return matches
@@ -381,7 +742,7 @@ def _gis_bod_pages(pages: List[Dict]) -> List[int]:
         if _gis_page_is_usable(page)
         and (
             page.get("page_type") == "Beneficial Ownership Declaration"
-            or _has_explicit_bod_heading(page.get("text_preview") or page.get("text") or "")
+            or _has_explicit_bod_heading(_processing_text(page))
         )
     ]
 
@@ -394,8 +755,8 @@ def _gis_annex_pages(pages: List[Dict]) -> List[int]:
         and (
             page.get("page_type") == "Annex A / Primary Purpose"
             or (
-                re.search(r"\bannex\s+a\b", _gis_text(page.get("text_preview") or page.get("text") or ""), re.I)
-                and re.search(r"\bprimary\s+purpose\b|\bpurpose\s+continuation\b", _gis_text(page.get("text_preview") or page.get("text") or ""), re.I)
+                re.search(r"\bannex\s+a\b", _gis_text(_processing_text(page)), re.I)
+                and re.search(r"\bprimary\s+purpose\b|\bpurpose\s+continuation\b", _gis_text(_processing_text(page)), re.I)
             )
         )
     ]
@@ -403,7 +764,7 @@ def _gis_annex_pages(pages: List[Dict]) -> List[int]:
 
 def _gis_all_text(pages: List[Dict], include_acceptance: bool = False) -> str:
     selected = pages if include_acceptance else [page for page in pages if _gis_page_is_usable(page)]
-    return "\n".join(str(page.get("text_preview") or page.get("text") or "") for page in selected)
+    return "\n".join(_processing_text(page) for page in selected)
 
 
 def evaluate_gis_bod(pages: List[Dict]) -> Dict:
@@ -761,27 +1122,179 @@ def format_page_numbers(page_numbers: List[int]) -> str:
     return f"{prefix} " + ", ".join(ranges)
 
 
-def evaluate_afs_completeness(pages: List[Dict]) -> Dict:
+def _years_in_text(text: str) -> List[int]:
+    return [int(match) for match in re.findall(r"\b20\d{2}\b", text or "")]
+
+
+def _looks_incidental_year_context(text: str) -> bool:
+    normalized = _normalized_text(text)
+    return any(re.search(pattern, normalized) for pattern in INCIDENTAL_YEAR_CONTEXT_PATTERNS)
+
+
+def _looks_authoritative_period_context(text: str) -> bool:
+    normalized = _normalized_text(text)
+    if any(re.search(pattern, normalized) for pattern in AUTHORITATIVE_PERIOD_PATTERNS):
+        return True
+    return False
+
+
+def page_scope(text: str) -> str:
+    heading = _top_heading_text(text, line_limit=8, char_limit=900)
+    if re.search(r"\bparent\s+company\s+statements?\b|\bseparate\s+financial\s+statements?\b|\bcompany[-\s]?only\b", heading):
+        return "parent"
+    if re.search(r"\bconsolidated\b|\band\s+subsidiaries\b", heading):
+        return "consolidated"
+    return "unspecified"
+
+
+def document_scope(metadata: Dict, pages: List[Dict]) -> str:
+    metadata_text = " ".join([
+        str(metadata.get("company_name") or ""),
+        str(metadata.get("submission_type") or ""),
+    ]).lower()
+    if re.search(r"\band\s+subsidiaries\b|\bconsolidated\b", metadata_text):
+        return "consolidated"
+    early_pages = pages[:20]
+    scopes = [page_scope(_processing_text(page)) for page in early_pages]
+    if "consolidated" in scopes:
+        return "consolidated"
+    if "parent" in scopes and "consolidated" not in scopes:
+        return "parent"
+    return "unspecified"
+
+
+def _scope_compatible(page_text: str, target_scope: str) -> bool:
+    scope = page_scope(page_text)
+    if target_scope == "consolidated" and scope == "parent":
+        return False
+    if target_scope == "parent" and scope == "consolidated":
+        return False
+    return True
+
+
+def detect_afs_reporting_years(pages: List[Dict]) -> List[int]:
+    """Detect AFS reporting years from authoritative statement-period contexts."""
+    evidence: Dict[int, int] = {}
+    primary_statement_evidence: Dict[int, int] = {}
+    for page in pages:
+        page_type = str(page.get("page_type") or "").strip().lower()
+        text = _processing_text(page)
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        authoritative_page = page_type in {
+            "statement of management's responsibility",
+            "independent auditor's report",
+            "cover sheet",
+        } or page_type in PRIMARY_AFS_PAGE_TYPES
+        for index, line in enumerate(lines):
+            window_lines = lines[max(0, index - 2): min(len(lines), index + 3)]
+            window = " ".join(window_lines)
+            years = _years_in_text(window)
+            if not years:
+                continue
+            if not authoritative_page:
+                continue
+            if _looks_incidental_year_context(window):
+                continue
+            context_is_authoritative = _looks_authoritative_period_context(window)
+            if not context_is_authoritative and authoritative_page:
+                context_is_authoritative = bool(
+                    index <= 8 and len(set(years)) >= 2 and re.search(r"\b20\d{2}\b", line)
+                )
+            if not context_is_authoritative:
+                continue
+            if page_type in PRIMARY_AFS_PAGE_TYPES and index > 15:
+                continue
+            score = 3 if authoritative_page else 1
+            if len(set(years)) >= 2:
+                score += 2
+            if page_type in PRIMARY_AFS_PAGE_TYPES:
+                score += 2
+            for year in years:
+                evidence[year] = evidence.get(year, 0) + score
+                if page_type in PRIMARY_AFS_PAGE_TYPES:
+                    primary_statement_evidence[year] = primary_statement_evidence.get(year, 0) + score
+    primary_evidence = {year: score for year, score in primary_statement_evidence.items() if score >= 5}
+    if primary_evidence:
+        max_year = max(primary_evidence)
+        # Ignore older historical note/reference years when a contiguous reporting set is available.
+        contiguous = []
+        year = max_year
+        while year in primary_evidence:
+            contiguous.append(year)
+            year -= 1
+        if len(contiguous) >= 2:
+            return contiguous
+    strong_years = [year for year, score in evidence.items() if score >= 3]
+    return sorted(set(strong_years), reverse=True)
+
+
+def detected_afs_current_year(pages: List[Dict]):
+    years = detect_afs_reporting_years(pages)
+    return years[0] if years else None
+
+
+def _company_master_relevant(metadata: Dict, company_master: Dict) -> bool:
+    master_name = str(company_master.get("company_name") or "").strip()
+    master_sec = str(company_master.get("sec_registration_no") or "").strip()
+    metadata_name = str(metadata.get("company_name") or "").strip()
+    metadata_sec = str(metadata.get("sec_registration_no") or "").strip()
+    if not master_name and not master_sec:
+        return False
+    if master_sec and metadata_sec and master_sec.lower() == metadata_sec.lower():
+        return True
+    return bool(master_name and metadata_name and fuzzy_company_match(metadata_name, master_name))
+
+
+def validate_company_master(all_text: str, metadata: Dict, company_master: Dict) -> Dict:
+    if not _company_master_relevant(metadata, company_master):
+        return {
+            "rule_name": "Company master data match",
+            "status": "Needs Review",
+            "message": "No relevant company master record was found; company identity cannot be automatically verified.",
+            "suggested_revert_reason": "",
+        }
+    master_name = str(company_master.get("company_name") or "").strip()
+    master_sec = str(company_master.get("sec_registration_no") or "").strip()
+    normalized_body = re.sub(r"[^a-z0-9]", "", all_text.lower())
+    normalized_sec = re.sub(r"[^a-z0-9]", "", master_sec.lower())
+    company_ok = fuzzy_company_match(all_text, master_name) and bool(normalized_sec and normalized_sec in normalized_body)
+    return {
+        "rule_name": "Company master data match",
+        "status": "Passed" if company_ok else "Failed",
+        "message": (
+            "Company name and SEC registration number align with master record."
+            if company_ok
+            else "Document company identity conflicts with the relevant master record."
+        ),
+        "suggested_revert_reason": "" if company_ok else "Wrong company profile",
+    }
+
+
+def evaluate_afs_completeness(pages: List[Dict], metadata: Dict = None) -> Dict:
+    target_scope = document_scope(metadata or {}, pages)
     components = []
     for definition in AFS_COMPONENT_DEFINITIONS:
-        detected_pages = []
-        review_pages = []
-        for page in pages:
-            evidence = _component_evidence(page, definition)
-            if evidence == "Detected":
-                detected_pages.append(page.get("page_number"))
-            elif evidence == "Needs Review":
-                review_pages.append(page.get("page_number"))
-        status = "Detected" if detected_pages else "Needs Review" if review_pages else "Missing"
+        if definition["name"] == "Independent Auditor's Report":
+            detected_pages = _primary_iar_page_numbers(pages)
+        elif definition["name"] == "Statement of Cash Flows":
+            detected_pages = _cash_flow_page_numbers(pages, definition)
+        else:
+            detected_pages = []
+            for page in pages:
+                if definition["name"] in AUDITOR_EXCLUDED_COMPONENTS and not _scope_compatible(_processing_text(page), target_scope):
+                    continue
+                evidence = _component_evidence(page, definition)
+                if evidence == "Detected":
+                    detected_pages.append(page.get("page_number"))
+        status = "Detected" if detected_pages else "Missing"
         components.append({
             "component": definition["name"],
             "status": status,
-            "page_numbers": detected_pages or review_pages,
-            "detected_pages": format_page_numbers(detected_pages or review_pages),
+            "page_numbers": detected_pages,
+            "detected_pages": format_page_numbers(detected_pages),
         })
 
     missing = [item["component"] for item in components if item["status"] == "Missing"]
-    uncertain = [item["component"] for item in components if item["status"] == "Needs Review"]
     evidence_count = sum(item["status"] != "Missing" for item in components)
     if evidence_count == 0:
         status = "Failed"
@@ -790,13 +1303,7 @@ def evaluate_afs_completeness(pages: List[Dict]) -> Dict:
     elif missing:
         status = "Failed"
         message = "Missing required AFS component(s): " + ", ".join(missing) + "."
-        if uncertain:
-            message += " Needs review: " + ", ".join(uncertain) + "."
         suggested_revert_reason = "Incomplete pages"
-    elif uncertain:
-        status = "Needs Review"
-        message = "AFS component evidence needs reviewer confirmation: " + ", ".join(uncertain) + "."
-        suggested_revert_reason = ""
     else:
         status = "Passed"
         message = "All required AFS components were detected."
@@ -810,17 +1317,18 @@ def evaluate_afs_completeness(pages: List[Dict]) -> Dict:
 
 
 def evaluate_bir_filing(pages: List[Dict]) -> Dict:
-    detected_pages = [
-        page.get("page_number")
-        for page in pages
-        if any(re.search(pattern, _page_evidence_text(page)) for pattern in BIR_EVIDENCE_PATTERNS)
-    ]
+    detected_pages = []
+    for page in pages:
+        text = _page_evidence_text(page)
+        has_strong_proof = any(re.search(pattern, text) for pattern in BIR_STRONG_EVIDENCE_PATTERNS)
+        if has_strong_proof:
+            detected_pages.append(page.get("page_number"))
     if detected_pages:
         status = "Detected"
-        message = f"BIR-related text evidence detected on {format_page_numbers(detected_pages)}."
+        message = f"BIR filing/receipt evidence detected on {format_page_numbers(detected_pages)}."
     else:
         status = "Needs Review"
-        message = "No BIR-related text evidence was detected."
+        message = "No filing/receipt-type BIR proof was automatically detected. Generic tax, TIN, and accreditation references are not treated as proof of filing."
     return {
         "status": status,
         "message": message,
@@ -834,7 +1342,7 @@ def analyze_pages(raw_pages: List[Dict], metadata: Dict, company_master: Dict) -
     company_name = metadata.get("company_name") or company_master.get("company_name", "")
     period_year = int(metadata.get("period_covered_year") or company_master.get("period_covered_year", 0))
     for page in raw_pages:
-        text = page.get("text") or page.get("text_preview") or ""
+        text = _processing_text(page)
         page_type = page.get("page_type") or (
             classify_gis_page(text) if is_gis_submission(metadata) else classify_page(text)
         )
@@ -846,6 +1354,7 @@ def analyze_pages(raw_pages: List[Dict], metadata: Dict, company_master: Dict) -
             "page_number": page.get("page_number"),
             "page_type": page_type,
             "orientation": page.get("orientation", "Portrait"),
+            "extracted_text": text,
             "text_preview": page.get("text_preview") or text[:TEXT_PREVIEW_MAX_CHARS],
             "original_text": page.get("original_text", text),
             "ocr_text": page.get("ocr_text", ""),
@@ -862,10 +1371,10 @@ def analyze_pages(raw_pages: List[Dict], metadata: Dict, company_master: Dict) -
 def validate_document(pages: List[Dict], metadata: Dict, company_master: Dict) -> List[Dict]:
     if is_gis_submission(metadata):
         return validate_gis_document(pages, metadata)
-    all_text = "\n".join(page.get("text_preview", "") for page in pages)
+    all_text = "\n".join(_processing_text(page) for page in pages)
     validations = []
     if is_afs_submission(metadata):
-        completeness = evaluate_afs_completeness(pages)
+        completeness = evaluate_afs_completeness(pages, metadata)
         validations.append({
             "rule_name": "AFS Completeness Check",
             "status": completeness["status"],
@@ -879,22 +1388,41 @@ def validate_document(pages: List[Dict], metadata: Dict, company_master: Dict) -
             "message": bir["message"] + " " + bir["note"],
             "suggested_revert_reason": "",
         })
-    company_ok = fuzzy_company_match(all_text, company_master.get("company_name", "")) and company_master.get("sec_registration_no", "") in all_text
-    validations.append({
-        "rule_name": "Company master data match",
-        "status": "Passed" if company_ok else "Failed",
-        "message": "Company name and SEC registration number align with master record." if company_ok else "Company name or SEC registration number needs reviewer confirmation.",
-        "suggested_revert_reason": "" if company_ok else "Wrong company profile",
-    })
+    validations.append(validate_company_master(all_text, metadata, company_master))
     year = int(metadata.get("period_covered_year") or company_master.get("period_covered_year", 0))
-    priority_pages = [page for page in pages if page.get("page_type") in ["Independent Auditor's Report", "Statement of Management's Responsibility", "Notes to Financial Statements"]]
-    period_ok = any(str(year) in page.get("text_preview", "") for page in priority_pages) or str(year) in all_text
+    detected_years = detect_afs_reporting_years(pages) if is_afs_submission(metadata) else []
+    detected_current = detected_years[0] if detected_years else None
+    period_ok = bool(detected_current and year == detected_current)
+    period_status = "Passed" if period_ok else "Failed" if detected_current else "Needs Review"
+    if period_ok:
+        period_message = f"Authoritative AFS period evidence supports {year}. Detected reporting years: {', '.join(map(str, detected_years))}."
+    elif detected_current:
+        period_message = (
+            f"Authoritative AFS period evidence indicates current year {detected_current} "
+            f"with reporting years {', '.join(map(str, detected_years))}; Intake Period Year is {year}."
+        )
+    else:
+        period_message = f"No authoritative AFS period heading clearly supports Intake Period Year {year}."
     validations.append({
         "rule_name": "AFS period covered",
-        "status": "Passed" if period_ok else "Failed",
-        "message": f"Priority pages support period covered {year}." if period_ok else f"Priority pages do not clearly support period covered {year}.",
-        "suggested_revert_reason": "" if period_ok else "Wrong period covered",
+        "status": period_status,
+        "message": period_message,
+        "suggested_revert_reason": "" if period_status != "Failed" else "Wrong period covered",
     })
+    intake_comparatives = [int(item) for item in re.findall(r"20\d{2}", str(metadata.get("comparative_years") or ""))]
+    detected_comparatives = detected_years[1:] if detected_years else []
+    extra_comparatives = [item for item in detected_comparatives if item not in intake_comparatives]
+    missing_comparatives = [item for item in intake_comparatives if item not in detected_comparatives]
+    if period_ok and (extra_comparatives or missing_comparatives):
+        validations.append({
+            "rule_name": "AFS comparative years metadata",
+            "status": "Needs Review",
+            "message": (
+                f"Document reporting years include comparatives {', '.join(map(str, detected_comparatives)) or 'none'}, "
+                f"while intake metadata specifies {', '.join(map(str, intake_comparatives)) or 'none'}."
+            ),
+            "suggested_revert_reason": "",
+        })
     submission_ok = "financial statements" in all_text.lower() or metadata.get("report_type") == "AFS"
     validations.append({
         "rule_name": "Submission type",

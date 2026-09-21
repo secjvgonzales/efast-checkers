@@ -4,12 +4,14 @@
   "total_equity": ["Total Equity", "Equity", "Stockholders' Equity", "Shareholders' Equity", "Fund Balance", "Net Assets"],
   "fund_balance": ["Fund Balance", "Accumulated Fund Balance"],
   "cash_and_cash_equivalents": ["Cash and Cash Equivalents", "Cash", "Cash in Bank", "Cash on Hand and in Banks"],
-  "revenue": ["Revenue", "Total Revenue", "Gross Revenue", "Gross Receipts", "Net Sales", "Sales", "Service Income"],
+  "revenue": ["Revenue", "Revenues", "Total Revenue", "Gross Revenue", "Gross Receipts", "Net Sales", "Sales", "Service Income"],
+  "gross_income": ["Gross Income", "Gross Profit"],
   "gross_revenue": ["Gross Revenue", "Gross Receipts", "Revenue before deductions"],
   "gross_receipts": ["Gross Receipts", "Receipts"],
   "total_revenue": ["Total Revenue", "Total Income", "Operating Revenue"],
   "net_sales": ["Net Sales", "Sales - net", "Net Revenue"],
   "net_income": ["Net Income", "Net Profit", "Profit for the Year", "Excess of Receipts Over Expenses", "Net Earnings"],
   "net_loss": ["Net Loss", "Loss for the Year", "Deficiency of Receipts Over Expenses"],
+  "total_comprehensive_income": ["Total Comprehensive Income", "Total Comprehensive Income (Loss)"],
   "operating_cash_flow": ["Net Cash Provided by Operating Activities", "Operating Cash Flow", "Cash Flows from Operating Activities"]
 }

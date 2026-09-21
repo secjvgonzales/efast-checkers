@@ -15,7 +15,7 @@ from storage import (
     load_company_master,
 )
 from ui_helpers import format_timestamp_pst
-from validation_engine import analyze_pages, validate_document
+from validation_engine import analyze_pages, detect_afs_reporting_years, validate_document
 
 
 def render():
@@ -152,10 +152,11 @@ def render():
                 if raw_pages:
                     pages = analyze_pages(raw_pages, metadata, company_master)
                     validations = validate_document(pages, metadata, company_master)
+                    detected_reporting_years = detect_afs_reporting_years(pages) if report_type == "AFS" else []
                     figures = (
                         []
                         if report_type == "GIS"
-                        else extract_figures_from_pages(pages, fiscal_year_candidates(metadata))
+                        else extract_figures_from_pages(pages, detected_reporting_years or fiscal_year_candidates(metadata))
                     )
                     low_text = any(page.get("image_quality_flag") in ("Warning", "Failed") for page in pages)
                     has_check_source = any(row.get("status") == "Check Source" for row in figures)

@@ -5,9 +5,10 @@ import streamlit as st
 
 from confidence import CONFIDENCE_WEIGHTS, calculate_figure_confidence
 from db import update_figure_reviews
-from extraction_engine import MANDATORY_LABELS, fiscal_year_candidates
+from extraction_engine import MANDATORY_LABELS, fiscal_year_candidates, page_scope, select_preferred_figures
 from storage import get_document, get_documents, get_figures, get_pages
 from ui_helpers import clean_source_snippet, dataframe_download, format_peso, metric_card, reviewing_banner, show_document_selector
+from validation_engine import detect_afs_reporting_years
 
 REVENUE_LABELS = {"gross_revenue", "total_revenue", "revenue"}
 
@@ -94,8 +95,10 @@ def render():
     # ── Persistent "Currently Reviewing" banner ──────────────────────────────
     reviewing_banner(document)
 
-    current_year = int(document["period_covered_year"]) if document.get("period_covered_year") else None
-    reporting_years = fiscal_year_candidates(document)
+    pages = get_pages(document_id)
+    detected_reporting_years = detect_afs_reporting_years(pages)
+    current_year = detected_reporting_years[0] if detected_reporting_years else int(document["period_covered_year"]) if document.get("period_covered_year") else None
+    reporting_years = detected_reporting_years or fiscal_year_candidates(document)
     reporting_years_display = " · ".join(str(year) for year in reporting_years) if reporting_years else "—"
     st.markdown(f"**Reporting Years:** {reporting_years_display}")
     if reporting_years:
@@ -114,9 +117,20 @@ def render():
     df = pd.DataFrame(figures)
     pages_by_number = {
         int(page["page_number"]): page
-        for page in get_pages(document_id)
+        for page in pages
         if page.get("page_number") is not None
     }
+    enriched_figures = []
+    for row in figures:
+        enriched = dict(row)
+        page = pages_by_number.get(int(row["page_number"])) if row.get("page_number") is not None else None
+        if page:
+            page_text = page.get("extracted_text") or page.get("original_text") or page.get("text_preview") or ""
+            enriched["source_scope"] = page_scope(page_text)
+        enriched_figures.append(enriched)
+    preferred_figures = select_preferred_figures(enriched_figures)
+    preferred_ids = {row.get("id") for row in preferred_figures if row.get("id") is not None}
+    preferred_df = pd.DataFrame(preferred_figures) if preferred_figures else df.iloc[0:0].copy()
     computed_by_id = {}
     for row in figures:
         page = pages_by_number.get(int(row["page_number"])) if row.get("page_number") is not None else None
@@ -163,7 +177,7 @@ def render():
     view_df = df if selected_year_value is None else df[df["fiscal_year"] == selected_year_value].copy()
 
     # Current Revenue is intentionally limited to the document's Period Covered Year.
-    current_revenue = _current_revenue_value(df, current_year)
+    current_revenue = _current_revenue_value(preferred_df, current_year)
     rev_display = format_peso(current_revenue) if current_revenue is not None else "No detected revenue"
 
     fiscal_years_display = " · ".join(str(year) for year in reporting_years) if reporting_years else "—"
@@ -370,7 +384,8 @@ def render():
         dataframe_download(export_df, f"sec_efast_figures_document_{document_id}.csv", "Export Figures CSV")
 
     st.subheader("Normalized Figure Buckets")
-    bucket = _normalized_figure_buckets(view_df, current_year)
+    bucket_source = view_df[view_df["id"].isin(preferred_ids)].copy() if preferred_ids and "id" in view_df else view_df
+    bucket = _normalized_figure_buckets(bucket_source, current_year)
     if bucket.empty:
         st.info("No safely normalized peso values are available for aggregation yet.")
     else:

@@ -2,6 +2,7 @@ import shutil
 import sys
 import subprocess
 from pathlib import Path
+import re
 from typing import Dict, List, Tuple
 
 import fitz
@@ -42,10 +43,156 @@ def quality_label(text_length: int, flag: str = "") -> str:
 OCR_TRIGGER_TEXT_LENGTH = 140
 OCR_RENDER_DPI = 200
 OCR_TIMEOUT_SECONDS = 15
+OCR_ACCEPTABLE_SCORE = 80
+OCR_CLEAR_IMPROVEMENT = 20
+OCR_POOR_TEXT_IMPROVEMENT = 10
+OCR_MIN_WORDS_FOR_ROTATION = 4
+OCR_MIN_ALPHA_RATIO_FOR_ROTATION = 0.25
+
+FINANCIAL_DOCUMENT_TERMS = [
+    r"\bconsolidated\b",
+    r"\bfinancial\s+statements?\b",
+    r"\bstatements?\s+of\b",
+    r"\bchanges\s+in\s+equity\b",
+    r"\bfinancial\s+position\b",
+    r"\bcomprehensive\s+income\b",
+    r"\bcash\s+flows?\b",
+    r"\bassets?\b",
+    r"\bliabilities\b",
+    r"\bequity\b",
+    r"\brevenue\b",
+    r"\bincome\b",
+    r"\bretained\s+earnings\b",
+]
 
 
 def _usable_text_score(text: str) -> int:
     return sum(character.isalnum() for character in (text or ""))
+
+
+def _ocr_text_quality(text: str) -> Dict[str, float]:
+    """Score OCR readability with deterministic text-shape signals only."""
+    value = (text or "").strip()
+    if not value:
+        return {
+            "score": 0.0,
+            "word_count": 0,
+            "long_word_count": 0,
+            "line_count": 0,
+            "printable_ratio": 0.0,
+            "alpha_ratio": 0.0,
+        }
+    non_space = [character for character in value if not character.isspace()]
+    printable_count = sum(character.isprintable() for character in value)
+    alpha_count = sum(character.isalpha() for character in non_space)
+    symbol_count = sum(not character.isalnum() for character in non_space)
+    words = re.findall(r"[A-Za-z]{2,}", value)
+    long_words = re.findall(r"[A-Za-z]{4,}", value)
+    line_count = sum(1 for line in value.splitlines() if line.strip())
+    printable_ratio = printable_count / len(value)
+    alpha_ratio = alpha_count / len(non_space) if non_space else 0.0
+    symbol_ratio = symbol_count / len(non_space) if non_space else 0.0
+    score = (
+        len(words) * 3
+        + len(long_words) * 2
+        + line_count
+        + printable_ratio * 20
+        + alpha_ratio * 20
+    )
+    if symbol_ratio > 0.45:
+        score -= (symbol_ratio - 0.45) * 40
+    score -= value.count("\ufffd") * 10
+    return {
+        "score": max(score, 0.0),
+        "word_count": len(words),
+        "long_word_count": len(long_words),
+        "line_count": line_count,
+        "printable_ratio": printable_ratio,
+        "alpha_ratio": alpha_ratio,
+    }
+
+
+def _ocr_semantic_score(text: str) -> float:
+    value = (text or "").strip()
+    if not value:
+        return 0.0
+    lowered = value.lower()
+    words = re.findall(r"[A-Za-z]{3,}", value)
+    if not words:
+        return 0.0
+    common_word_count = sum(
+        1
+        for word in words
+        if re.fullmatch(
+            r"(?i)(the|and|for|with|from|income|total|equity|cash|capital|stock|retained|financial|statements|consolidated|company|comprehensive|assets|liabilities|revenue|years|ended)",
+            word,
+        )
+    )
+    term_score = sum(30 for pattern in FINANCIAL_DOCUMENT_TERMS if re.search(pattern, lowered))
+    long_noise = len(re.findall(r"[A-Za-z]{14,}", value))
+    table_noise = value.count("|") + value.count("~") + value.count("=")
+    quality = _ocr_text_quality(value)
+    return (
+        term_score
+        + common_word_count * 4
+        + min(quality["word_count"], 80)
+        + quality["printable_ratio"] * 20
+        - long_noise * 8
+        - table_noise * 1.5
+    )
+
+
+def _ocr_text_is_acceptable(text: str) -> bool:
+    quality = _ocr_text_quality(text)
+    return (
+        quality["score"] >= OCR_ACCEPTABLE_SCORE
+        and quality["word_count"] >= OCR_MIN_WORDS_FOR_ROTATION
+        and quality["alpha_ratio"] >= OCR_MIN_ALPHA_RATIO_FOR_ROTATION
+    )
+
+
+def _candidate_is_clear_improvement(candidate_text: str, baseline_text: str) -> bool:
+    candidate = _ocr_text_quality(candidate_text)
+    baseline = _ocr_text_quality(baseline_text)
+    if baseline["score"] < OCR_POOR_TEXT_IMPROVEMENT:
+        return candidate["score"] >= baseline["score"] + OCR_POOR_TEXT_IMPROVEMENT
+    return (
+        candidate["score"] >= baseline["score"] + OCR_CLEAR_IMPROVEMENT
+        and candidate["word_count"] >= OCR_MIN_WORDS_FOR_ROTATION
+        and candidate["alpha_ratio"] >= OCR_MIN_ALPHA_RATIO_FOR_ROTATION
+    )
+
+
+def _ocr_page_text_with_rotation_selection(page, baseline_rotation: int) -> Tuple[str, str]:
+    best_text = ""
+    best_error = ""
+    best_score = -1.0
+    baseline_text = ""
+    baseline_error = ""
+    rotations = []
+    for rotation in (baseline_rotation, 0, 90, 180, 270):
+        if rotation not in rotations:
+            rotations.append(rotation)
+    for index, candidate_rotation in enumerate(rotations):
+        candidate_text, candidate_error = _ocr_page_text(page, candidate_rotation)
+        if index == 0:
+            baseline_text = (candidate_text or "").strip()
+            baseline_error = candidate_error
+            if _ocr_text_is_acceptable(baseline_text) and _ocr_semantic_score(baseline_text) >= 120:
+                return baseline_text, baseline_error
+        candidate_text = (candidate_text or "").strip()
+        candidate_score = _ocr_semantic_score(candidate_text)
+        if candidate_score > best_score:
+            best_text = candidate_text
+            best_error = candidate_error
+            best_score = candidate_score
+
+    if best_text and (
+        _candidate_is_clear_improvement(best_text, baseline_text)
+        or _ocr_semantic_score(best_text) >= _ocr_semantic_score(baseline_text) + 60
+    ):
+        return best_text, best_error
+    return baseline_text, baseline_error
 
 
 def _ocr_page_text(page, rotation: int) -> Tuple[str, str]:
@@ -88,7 +235,7 @@ def _apply_ocr_fallback(page, text: str) -> Tuple[str, str, str, str, str]:
         return original_text, original_text, ocr_text, extraction_source, ""
 
     rotation = normalize_rotation(getattr(page, "rotation", 0))
-    ocr_text, ocr_error = _ocr_page_text(page, rotation)
+    ocr_text, ocr_error = _ocr_page_text_with_rotation_selection(page, rotation)
     if _usable_text_score(ocr_text) > _usable_text_score(original_text):
         return ocr_text, original_text, ocr_text, "OCR Fallback", ocr_error
     return original_text, original_text, ocr_text, extraction_source, ocr_error
@@ -118,6 +265,7 @@ def extract_pdf_pages(file_path: Path) -> Tuple[List[Dict], List[str]]:
             pages.append({
                 "page_number": index,
                 "text": effective_text,
+                "extracted_text": effective_text,
                 "text_preview": effective_text[:TEXT_PREVIEW_MAX_CHARS],
                 "original_text": original_text,
                 "ocr_text": ocr_text,
@@ -147,6 +295,7 @@ def extract_pdf_pages(file_path: Path) -> Tuple[List[Dict], List[str]]:
                 pages.append({
                     "page_number": index,
                     "text": text,
+                    "extracted_text": text,
                     "text_preview": text[:TEXT_PREVIEW_MAX_CHARS],
                 "original_text": text,
                 "ocr_text": "",
