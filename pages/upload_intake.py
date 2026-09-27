@@ -3,8 +3,9 @@ from datetime import date
 import streamlit as st
 
 from config import DEFAULT_COMPANY, DEFAULT_FILING_YEAR, DEFAULT_PERIOD_YEAR, DEFAULT_REPORT_TYPE, DEFAULT_SUBMISSION_TYPE, UPLOADS_DIR
-from db import insert_document, replace_document_analysis
+from db import insert_document, replace_document_analysis, replace_gis_extracted_items
 from extraction_engine import extract_figures_from_pages, fiscal_year_candidates
+from gis_extraction_engine import extract_gis_items
 from pdf_utils import extract_pdf_pages, prepare_uploaded_file
 from storage import (
     delete_test_document,
@@ -151,6 +152,7 @@ def render():
                 company_master = load_company_master()
                 if raw_pages:
                     pages = analyze_pages(raw_pages, metadata, company_master)
+                    gis_items = extract_gis_items(pages, metadata) if report_type == "GIS" else []
                     validations = validate_document(pages, metadata, company_master)
                     detected_reporting_years = detect_afs_reporting_years(pages) if report_type == "AFS" else []
                     figures = (
@@ -161,7 +163,7 @@ def render():
                     low_text = any(page.get("image_quality_flag") in ("Warning", "Failed") for page in pages)
                     has_check_source = any(row.get("status") == "Check Source" for row in figures)
                     if report_type == "GIS":
-                        analysis_outcome = "GIS Review Lite Analysis Completed"
+                        analysis_outcome = "GIS Reviewer-Assistance Analysis Completed"
                         outcome_message = (
                             "GIS pages, content-based component evidence, meeting-period checks, "
                             "and reviewer-assistance rules were completed."
@@ -202,6 +204,7 @@ def render():
                 else:
                     pages = []
                     figures = []
+                    gis_items = []
                     analysis_outcome = "Extraction Failed — Manual Review Required"
                     outcome_message = (
                         "No page text could be extracted from the uploaded PDF. No demo pages or demo figures were inserted."
@@ -213,7 +216,7 @@ def render():
                     "rule_name": "PDF analysis outcome",
                     "status": "Passed" if analysis_outcome in (
                         "Real PDF Analysis Completed",
-                        "GIS Review Lite Analysis Completed",
+                        "GIS Reviewer-Assistance Analysis Completed",
                     ) else "Needs Review",
                     "message": f"{analysis_outcome}. {outcome_message}",
                     "suggested_revert_reason": (
@@ -223,6 +226,8 @@ def render():
                     ),
                 })
                 replace_document_analysis(document_id, pages, validations, figures)
+                if report_type == "GIS":
+                    replace_gis_extracted_items(document_id, gis_items)
                 st.session_state["active_document_id"] = document_id
                 st.success(f"Document #{document_id} saved and analyzed.")
 

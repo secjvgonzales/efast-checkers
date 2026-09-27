@@ -9,9 +9,11 @@ from db import (
     insert_document,
     query,
     replace_document_analysis,
+    replace_gis_extracted_items,
     save_reviewer_action,
 )
 from extraction_engine import extract_figures_from_pages, fiscal_year_candidates
+from gis_extraction_engine import extract_gis_items
 from validation_engine import analyze_pages, validate_document
 
 
@@ -180,6 +182,14 @@ def _seed_one_demo_document(entry: Dict) -> int:
             (document_id,),
         )
         if has_analysis:
+            if str(metadata.get("report_type") or "").upper() == "GIS":
+                existing_gis_items = query(
+                    "SELECT 1 FROM gis_extracted_items WHERE document_id = ? LIMIT 1",
+                    (document_id,),
+                )
+                if not existing_gis_items:
+                    pages = get_pages(document_id)
+                    replace_gis_extracted_items(document_id, extract_gis_items(pages, metadata))
             _backfill_demo_comparative_figures(document_id, metadata)
             return document_id
     else:
@@ -203,6 +213,8 @@ def _seed_one_demo_document(entry: Dict) -> int:
         validations = entry["validations"]
         figures = entry["figures"]
     replace_document_analysis(document_id, pages, validations, figures)
+    if str(metadata.get("report_type") or "").upper() == "GIS":
+        replace_gis_extracted_items(document_id, extract_gis_items(pages, metadata))
     _backfill_demo_comparative_figures(document_id, metadata)
 
     existing_action = query(
@@ -311,6 +323,17 @@ def get_validations(document_id: int) -> List[Dict]:
 def get_figures(document_id: int) -> List[Dict]:
     return query(
         "SELECT * FROM extracted_figures WHERE document_id = ? ORDER BY page_number, normalized_label, fiscal_year DESC",
+        (document_id,),
+    )
+
+
+def get_gis_extracted_items(document_id: int) -> List[Dict]:
+    return query(
+        """
+        SELECT * FROM gis_extracted_items
+        WHERE document_id = ?
+        ORDER BY category, source_page, id
+        """,
         (document_id,),
     )
 

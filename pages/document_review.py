@@ -1,11 +1,12 @@
 import html as html_lib
+import json
 
 import pandas as pd
 import streamlit as st
 
 from db import save_reviewer_action, update_gis_bod_routing
 from pdf_utils import quality_label
-from storage import get_document, get_documents, get_pages, get_reviewer_actions, get_validations, load_revert_reasons
+from storage import get_document, get_documents, get_gis_extracted_items, get_pages, get_reviewer_actions, get_validations, load_revert_reasons
 from ui_helpers import highlight_terms, render_status, reviewing_banner, show_document_selector, status_badge
 from validation_engine import (
     evaluate_afs_completeness,
@@ -137,10 +138,11 @@ def _render_afs_completeness_check(pages, document):
 
 def _render_gis_completeness_check(pages, document):
     completeness = evaluate_gis_completeness(pages, document.get("corporation_type") or "Stock")
-    bod = evaluate_gis_bod(pages)
     st.subheader("GIS Completeness Check")
     if completeness["status"] == "Passed":
         st.success(completeness["message"])
+    elif completeness["status"] == "Needs Review":
+        st.warning(completeness["message"])
     else:
         st.error(completeness["message"])
 
@@ -189,6 +191,9 @@ def _render_gis_completeness_check(pages, document):
     )
     st.caption("BOD absence is excluded from GIS completeness; Annex A is optional.")
 
+
+def _render_gis_bod_routing(pages, document):
+    bod = evaluate_gis_bod(pages)
     st.subheader("Beneficial Ownership Routing")
     if bod["status"] == "Detected":
         st.info(f"{bod['message']} Select the page for reviewer-controlled routing representation.")
@@ -210,6 +215,139 @@ def _render_gis_completeness_check(pages, document):
     if st.button("Save BOD Routing Selection", key=f"save_gis_bod_routing_{document['id']}"):
         update_gis_bod_routing(document["id"], selected)
         st.success("BOD routing selection saved for reviewer reference only; no external routing was performed.")
+
+
+def _gis_items_by_category(items, category):
+    return [item for item in items if item.get("category") == category]
+
+
+def _metadata(item):
+    raw = item.get("metadata_json") or ""
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+
+
+def _render_gis_profile_validation(items):
+    st.subheader("GIS Profile Validation")
+    profile = _gis_items_by_category(items, "profile")
+    if not profile:
+        st.info("No structured GIS profile fields have been extracted yet. Re-upload or reprocess the GIS document to populate this section.")
+        return
+    wanted = [
+        "company_name",
+        "sec_registration_no",
+        "gis_reporting_year",
+        "fiscal_year_end",
+        "actual_annual_meeting_date",
+        "is_amended",
+    ]
+    rows = []
+    for field in wanted:
+        item = next((row for row in profile if row.get("field_name") == field), None)
+        if not item:
+            rows.append({"Field": field.replace("_", " ").title(), "Value": "—", "Source Page": "—", "Review Status": "Needs Review", "Evidence": "—"})
+            continue
+        rows.append({
+            "Field": item.get("display_label") or field,
+            "Value": item.get("reviewed_value") or item.get("value_text") or "—",
+            "Source Page": item.get("source_page") or "—",
+            "Confidence": item.get("confidence_label") or "—",
+            "Review Status": item.get("review_status") or "Needs Review",
+            "Evidence": item.get("evidence") or "—",
+        })
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+
+def _render_gis_capital_summary(items):
+    st.subheader("Capital Summary")
+    capital = _gis_items_by_category(items, "capital")
+    if not capital:
+        st.info("No capital summary fields were extracted. Review the Capital Structure pages manually.")
+        return
+    rows = []
+    for item in capital:
+        rows.append({
+            "Field": item.get("display_label"),
+            "Value": item.get("reviewed_value") or item.get("value_text"),
+            "Normalized": item.get("normalized_value") or "—",
+            "Page": item.get("source_page") or "—",
+            "Confidence": item.get("confidence_label") or "—",
+            "Review Status": item.get("review_status") or "Needs Review",
+            "Evidence": item.get("evidence") or "—",
+        })
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+
+def _render_gis_people(items):
+    st.subheader("Directors / Officers Review")
+    people = _gis_items_by_category(items, "people")
+    if not people:
+        st.info("No directors/officers rows were extracted. Review the Directors / Officers pages manually.")
+        return
+    rows = []
+    for item in people:
+        meta = _metadata(item)
+        rows.append({
+            "Name": meta.get("person_name") or item.get("value_text"),
+            "Nationality": meta.get("nationality") or "—",
+            "Board Role / Indicator": meta.get("board_role_or_indicator") or "—",
+            "Officer Position": meta.get("officer_position") or "—",
+            "Gender": meta.get("gender") or "—",
+            "Stockholder": meta.get("stockholder_indicator") or "—",
+            "Page": item.get("source_page") or "—",
+            "Review Status": item.get("review_status") or "Needs Review",
+        })
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    st.caption("TIN and residential-address fields are intentionally not extracted for this prototype.")
+
+
+def _render_gis_stockholders(items):
+    st.subheader("Major Stockholder Summary")
+    stockholders = _gis_items_by_category(items, "stockholders")
+    if not stockholders:
+        st.info("No major stockholder rows were extracted. Review the Stockholders' Information pages manually.")
+        return
+    rows = []
+    for item in stockholders:
+        meta = _metadata(item)
+        rows.append({
+            "Stockholder": meta.get("stockholder_name") or item.get("value_text"),
+            "Share Count": meta.get("share_count") or "—",
+            "Ownership %": meta.get("ownership_percent") or "—",
+            "Page": item.get("source_page") or "—",
+            "Review Status": item.get("review_status") or "Needs Review",
+            "Evidence": item.get("evidence") or "—",
+        })
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+
+def _render_gis_certification(items):
+    st.subheader("Certification / Notarization")
+    certification = _gis_items_by_category(items, "certification")
+    if not certification:
+        st.info("No certification/notarization evidence was extracted. Review the final GIS pages manually.")
+        return
+    rows = []
+    for item in certification:
+        rows.append({
+            "Evidence Type": item.get("display_label"),
+            "Value": item.get("value_text"),
+            "Page": item.get("source_page") or "—",
+            "Confidence": item.get("confidence_label") or "—",
+            "Review Status": item.get("review_status") or "Needs Review",
+            "Evidence": item.get("evidence") or "—",
+        })
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+
+def _render_gis_structured_review(document_id):
+    items = get_gis_extracted_items(document_id)
+    _render_gis_profile_validation(items)
+    return items
 
 
 def render():
@@ -262,7 +400,13 @@ def render():
     validations = get_validations(document_id)
 
     if is_gis_submission(document):
+        gis_items = _render_gis_structured_review(document_id)
         _render_gis_completeness_check(pages, document)
+        _render_gis_capital_summary(gis_items)
+        _render_gis_people(gis_items)
+        _render_gis_stockholders(gis_items)
+        _render_gis_bod_routing(pages, document)
+        _render_gis_certification(gis_items)
     else:
         _render_afs_completeness_check(pages, document)
 

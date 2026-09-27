@@ -63,6 +63,19 @@ FINANCIAL_DOCUMENT_TERMS = [
     r"\brevenue\b",
     r"\bincome\b",
     r"\bretained\s+earnings\b",
+    r"\bgeneral\s+information\s+sheet\b",
+    r"\bcorporate\s+name\b",
+    r"\bsec\s+registration\b",
+    r"\bcapital\s+structure\b",
+    r"\bdirectors?\b",
+    r"\bofficers?\b",
+    r"\bstockholders?\b",
+    r"\bauthorized\s+capital\b",
+    r"\bsubscribed\s+capital\b",
+    r"\bpaid[-\s]?up\s+capital\b",
+    r"\bcorporate\s+secretary\b",
+    r"\bsubscribed\s+and\s+sworn\b",
+    r"\bnotary\s+public\b",
 ]
 
 

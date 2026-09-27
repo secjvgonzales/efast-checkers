@@ -215,6 +215,7 @@ GIS_PAGE_TYPES = {
 GIS_PAGE_PATTERNS = {
     "Corporate / Profile / Meeting Information": [
         r"\bgeneral\s+information\s+sheet\b",
+        r"\bamended\s+general\s+information\s+sheet\b",
         r"\bcorporate\s+name\b",
         r"\bsec\s+(?:registration|file)\s+(?:no|number)\b",
         r"\bactual\s+date\s+of\s+(?:annual|special)\s+meeting\b",
@@ -238,11 +239,13 @@ GIS_PAGE_PATTERNS = {
         r"\bdirectors?\s*/\s*officers?\b",
         r"\bname(?:s)?\s+of\s+(?:the\s+)?directors?\b",
         r"\bname(?:s)?\s+of\s+(?:the\s+)?officers?\b",
+        r"\bofficer\s+position\b",
     ],
     "Stockholders' Information": [
         r"\bstockholders?'?\s+(?:information|list|ownership)\b",
         r"\bstockholders?\b",
         r"\bnumber\s+of\s+shares\s+(?:subscribed|owned)\b",
+        r"\btotal\s+number\s+of\s+stockholders\b",
     ],
     "Investments / Other Corporate Information": [
         r"\binvestments?\b",
@@ -257,6 +260,7 @@ GIS_PAGE_PATTERNS = {
     ],
     "Corporate Secretary Attestation / Notarization": [
         r"\bcorporate\s+secretary\b",
+        r"\bcertif(?:y|ication)\b",
         r"\bsecretary(?:'|’)?s?\s+attestation\b",
         r"\bsubscribed\s+and\s+sworn\b",
         r"\backnowledg(?:e)?ment\b",
@@ -270,7 +274,6 @@ GIS_PAGE_PATTERNS = {
 
 GIS_STOCK_REQUIRED = [
     "Corporate / Profile / Meeting Information",
-    "AMLA Information",
     "Capital Structure",
     "Directors / Officers",
     "Stockholders' Information",
@@ -280,19 +283,19 @@ GIS_STOCK_REQUIRED = [
 
 GIS_NON_STOCK_REQUIRED = [
     "Corporate / Profile / Meeting Information",
-    "AMLA Information",
     "Directors / Officers",
     "Investments / Other Corporate Information",
     "Corporate Secretary / Notarization",
 ]
 
 GIS_OPTIONAL_COMPONENTS = [
+    "AMLA Information",
     "Annex A / Primary Purpose",
 ]
 
 GIS_PERIOD_YEAR_PATTERNS = [
-    r"\bfor\s+(?:the\s+)?year\s+(?:ended\s+)?(?:\w+\s+\d{1,2},?\s+)?(\d{4})\b",
-    r"\bfor\s+the\s+year\s*[:\-]?\s*(\d{4})\b",
+    r"\b(?:amended\s+)?general\s+information\s+sheet\b(?:\s*\(\s*gis\s*\))?[\s\S]{0,80}?\bfor\s*(?:the\s*)?year\s*[:\-]?\s*(20\d{2})\b",
+    r"\bgis\s+for\s+(?:the\s+)?year\s*[:\-]?\s*(20\d{2})\b",
 ]
 
 GIS_MEETING_DATE_LABELS = {
@@ -608,6 +611,40 @@ def is_gis_acceptance_cover(text: str) -> bool:
     return has_acceptance or (has_qr and bool(re.search(r"\bsec\b", lowered)))
 
 
+def _gis_anchor_count(text: str, patterns: List[str]) -> int:
+    return sum(bool(re.search(pattern, text, re.I)) for pattern in patterns)
+
+
+def _gis_roster_structure(text: str) -> bool:
+    return _gis_anchor_count(text, [
+        r"\bnationality\b", r"\bgender\b", r"\bboard\s+(?:position|role)\b",
+        r"\bofficer\s+position\b", r"\bposition\b",
+    ]) >= 3
+
+
+def _gis_stockholder_structure(text: str) -> bool:
+    return _gis_anchor_count(text, [
+        r"\bname\b", r"\bshares?\s+(?:subscribed|owned)\b", r"\b%\s*(?:of\s+)?ownership\b",
+        r"\bamount\s+paid\b", r"\bnationality\b",
+    ]) >= 3
+
+
+def _gis_continuation_compatible(text: str, page_type: str) -> bool:
+    if page_type == "Directors / Officers":
+        return _gis_roster_structure(text) or bool(
+            re.search(r"\bfilipin[oa]\b", text, re.I)
+            and len(re.findall(r"\bn\s*/?\s*a\b", text, re.I)) >= 2
+            and re.search(r"\b(?:vice\s+president|president|treasurer|secretary|officer)\b", text, re.I)
+        )
+    if page_type == "Stockholders' Information":
+        return _gis_stockholder_structure(text) or bool(
+            re.search(r"\bname\b", text, re.I)
+            and re.search(r"\b(?:owner|ownership)\b", text, re.I)
+            and len(re.findall(r"\b\d[\d,.]*\b", text)) >= 3
+        )
+    return False
+
+
 def classify_gis_page(text: str) -> str:
     lowered = _gis_text(text).lower()
     if is_gis_acceptance_cover(lowered):
@@ -619,11 +656,55 @@ def classify_gis_page(text: str) -> str:
         lowered,
     ):
         return "Annex A / Primary Purpose"
-    for page_type, patterns in GIS_PAGE_PATTERNS.items():
-        if any(re.search(pattern, lowered) for pattern in patterns):
-            return page_type
-    if re.search(r"\bgeneral\s+information\s+sheet\b|\bgis\b", lowered):
+    profile_anchors = [
+        r"\bcorporate\s+name\b", r"\bsec\s+(?:registration|file)\s+(?:no\.?|number)\b",
+        r"\bfiscal\s+year\s+end\b", r"\bactual\s+date\s+of\s+(?:annual|special)\s+meeting\b",
+        r"\bprincipal\s+office\b", r"\bperiod\s+covered\b",
+    ]
+    has_gis_heading = bool(re.search(r"\b(?:amended\s+)?general\s+information\s+sheet\b", lowered))
+    has_authoritative_gis_year_heading = bool(re.search(
+        r"\b(?:amended\s+)?general\s+information\s+sheet\s*(?:\(\s*gis\s*\))?\s+for\s*(?:the\s*)?year\s*[:\-]?\s*20\d{2}\b",
+        lowered,
+    ))
+    if has_authoritative_gis_year_heading or (has_gis_heading and _gis_anchor_count(lowered, profile_anchors) >= 2) or _gis_anchor_count(lowered, profile_anchors) >= 3:
         return "Corporate / Profile / Meeting Information"
+
+    if re.search(r"\banti[-\s]?money\s+laundering\b|\bamla\b", lowered):
+        return "AMLA Information"
+
+    capital_anchors = [
+        r"\bauthorized\s+capital(?:\s+stock)?\b", r"\bsubscribed\s+capital(?:\s+stock)?\b",
+        r"\bpaid[-\s]?up\s+capital\b", r"\bpar\s*/?\s*stated\s+value\b",
+        r"\btype\s+of\s+shares?\b", r"\bcapital\s+structure\b",
+    ]
+    if re.search(r"\bdirectors?\s*(?:and|/)\s*officers?\b", lowered) or _gis_roster_structure(lowered):
+        return "Directors / Officers"
+
+    if re.search(r"\bstockholder.{0,4}\s+information\b", lowered) or _gis_stockholder_structure(lowered):
+        return "Stockholders' Information"
+
+    capital_table_structure = _gis_anchor_count(lowered, [
+        r"\bnumber\s+of\s+shares?\b", r"\bpar\s*/?\s*stated\s+value\b", r"\bamount\b",
+    ]) >= 2
+    if _gis_anchor_count(lowered, capital_anchors) >= 2 or capital_table_structure:
+        return "Capital Structure"
+
+    other_anchors = [
+        r"\binvestment\s+of\s+corporate\s+funds?\b", r"\btreasury\s+shares?\b",
+        r"\bretained\s+earnings?\b", r"\bdividends?\s+declared\b",
+        r"\badditional\s+shares?\s+issued\b", r"\btotal\s+annual\s+compensation\b",
+        r"\bother\s+corporate\s+information\b",
+    ]
+    if _gis_anchor_count(lowered, other_anchors) >= 2 or re.search(r"\binvestment\s+of\s+corporate\s+funds?\b", lowered):
+        return "Investments / Other Corporate Information"
+
+    certification_anchors = [
+        r"\bsubscribed\s+and\s+sworn\b", r"\bnotary\s+public\b", r"\bdoc\.?\s*no\.?\b",
+        r"\bpage\s+no\.?\b", r"\bbook\s+no\.?\b", r"\bseries\s+of\b",
+    ]
+    has_secretary_declaration = bool(re.search(r"\bcorporate\s+secretary\b", lowered) and re.search(r"\b(?:certif(?:y|ication)|attest)\b", lowered))
+    if has_secretary_declaration or _gis_anchor_count(lowered, certification_anchors) >= 2:
+        return "Corporate Secretary Attestation / Notarization"
     return "Other / Unclassified"
 
 
@@ -721,16 +802,13 @@ def _gis_page_is_usable(page: Dict) -> bool:
 
 
 def _gis_component_pages(pages: List[Dict], component: str) -> List[int]:
-    patterns = GIS_PAGE_PATTERNS.get(component, [])
-    if component == "Corporate Secretary / Notarization":
-        patterns = GIS_PAGE_PATTERNS["Corporate Secretary Attestation / Notarization"]
+    expected_type = "Corporate Secretary Attestation / Notarization" if component == "Corporate Secretary / Notarization" else component
     matches = []
     for page in pages:
         if not _gis_page_is_usable(page):
             continue
         page_type = str(page.get("page_type") or "")
-        text = _gis_text(_processing_text(page)).lower()
-        if page_type == component or any(re.search(pattern, text) for pattern in patterns):
+        if page_type == expected_type:
             matches.append(page.get("page_number"))
     return matches
 
@@ -797,11 +875,12 @@ def evaluate_gis_bod(pages: List[Dict]) -> Dict:
 def evaluate_gis_completeness(pages: List[Dict], corporation_type: str = "Stock") -> Dict:
     required = GIS_NON_STOCK_REQUIRED if str(corporation_type or "").lower() == "non-stock" else GIS_STOCK_REQUIRED
     components = []
+    uncertain_text = any(page.get("image_quality_flag") in ("Warning", "Failed") for page in pages)
     for component in required:
         page_numbers = _gis_component_pages(pages, component)
         components.append({
             "component": component,
-            "status": "Detected" if page_numbers else "Missing",
+            "status": "Detected" if page_numbers else "Needs Review" if uncertain_text else "Missing",
             "page_numbers": page_numbers,
             "detected_pages": format_page_numbers(page_numbers),
             "required": True,
@@ -830,12 +909,20 @@ def evaluate_gis_completeness(pages: List[Dict], corporation_type: str = "Stock"
     })
 
     missing = [item["component"] for item in components if item["required"] and item["status"] == "Missing"]
+    uncertain = [item["component"] for item in components if item["required"] and item["status"] == "Needs Review"]
     if missing:
         status = "Failed"
         message = (
             f"Missing required GIS {corporation_type or 'Stock'} component(s): "
             + ", ".join(missing)
             + ". Optional Annex A and conditional BOD are excluded from this result."
+        )
+    elif uncertain:
+        status = "Needs Review"
+        message = (
+            "Required GIS component evidence could not be reliably recovered for: "
+            + ", ".join(uncertain)
+            + ". Review low-text/OCR pages before treating these sections as absent."
         )
     else:
         status = "Passed"
@@ -870,6 +957,10 @@ def _parse_gis_date(value: str):
         "%d %b %Y",
         "%m/%d/%Y",
         "%m-%d-%Y",
+        "%d-%b-%y",
+        "%d-%b-%Y",
+        "%d/%m/%y",
+        "%d/%m/%Y",
         "%Y-%m-%d",
     )
     for fmt in formats:
@@ -888,6 +979,7 @@ def _extract_gis_meeting_dates(text: str, meeting_type: str) -> List[date]:
         r"([a-z]+\s+\d{1,2},?\s+\d{4}|"
         r"\d{1,2}\s+[a-z]+\s+\d{4}|"
         r"\d{1,2}[/-]\d{1,2}[/-]\d{4}|"
+        r"\d{1,2}-[a-z]{3}-\d{2,4}|"
         r"\d{4}-\d{1,2}-\d{1,2})"
     )
     for label in labels:
@@ -909,7 +1001,9 @@ def _gis_meeting_validation(pages: List[Dict], metadata: Dict) -> Dict:
     all_text = _gis_all_text(pages)
     submission_type = str(metadata.get("submission_type") or "").strip()
     target_date = _metadata_period_date(metadata)
-    if any(re.search(pattern, all_text, re.I) for pattern in GIS_NO_MEETING_PATTERNS):
+    if submission_type == "No Meeting / Non-Holding of Annual Meeting" and any(
+        re.search(pattern, all_text, re.I) for pattern in GIS_NO_MEETING_PATTERNS
+    ):
         return {
             "status": "Needs Review",
             "message": "No Meeting / non-holding evidence was detected; reviewer confirmation is required.",
@@ -970,8 +1064,8 @@ def _gis_company_validation(pages: List[Dict], metadata: Dict) -> List[Dict]:
     normalized_sec = re.sub(r"[^a-z0-9]", "", sec_no.lower())
     normalized_body = re.sub(r"[^a-z0-9]", "", body_text.lower())
     sec_match = bool(normalized_sec) and normalized_sec in normalized_body
-    company_status = "Passed" if company_match else "Needs Review" if insufficient else "Failed"
-    sec_status = "Passed" if sec_match else "Needs Review" if insufficient else "Failed"
+    company_status = "Passed" if company_match else "Needs Review"
+    sec_status = "Passed" if sec_match else "Needs Review"
     return [
         {
             "rule_name": "GIS Company Name",
@@ -979,9 +1073,9 @@ def _gis_company_validation(pages: List[Dict], metadata: Dict) -> List[Dict]:
             "message": (
                 "Company name evidence matches Intake metadata."
                 if company_match
-                else "Company name evidence is insufficient or does not match Intake metadata."
+                else "Company name evidence was not found in usable text; structured extraction will distinguish conflict from missing evidence."
             ),
-            "suggested_revert_reason": "Wrong company profile" if company_status == "Failed" else "",
+            "suggested_revert_reason": "",
         },
         {
             "rule_name": "GIS SEC Registration Number",
@@ -989,9 +1083,9 @@ def _gis_company_validation(pages: List[Dict], metadata: Dict) -> List[Dict]:
             "message": (
                 "SEC Registration Number evidence matches Intake metadata."
                 if sec_match
-                else "SEC Registration Number evidence is insufficient or does not match Intake metadata."
+                else "SEC Registration Number evidence was not found in usable text; missing OCR evidence is not treated as a conflict."
             ),
-            "suggested_revert_reason": "Wrong company profile" if sec_status == "Failed" else "",
+            "suggested_revert_reason": "",
         },
     ]
 
@@ -1024,17 +1118,39 @@ def _gis_corporate_secretary_validation(pages: List[Dict]) -> Dict:
 def validate_gis_document(pages: List[Dict], metadata: Dict) -> List[Dict]:
     all_text = _gis_all_text(pages)
     validations = _gis_company_validation(pages, metadata)
+    extracted_items = []
+    try:
+        from gis_extraction_engine import extract_gis_items, validate_profile_items
+
+        extracted_items = extract_gis_items(pages, metadata)
+        validations.extend(validate_profile_items(extracted_items, metadata))
+    except Exception as exc:
+        validations.append({
+            "rule_name": "GIS Structured Profile Extraction",
+            "status": "Needs Review",
+            "message": f"Structured GIS profile extraction could not complete safely: {exc}",
+            "suggested_revert_reason": "",
+        })
     year = int(metadata.get("period_covered_year") or 0)
-    detected_years = extract_gis_period_years(all_text)
-    if year in detected_years:
-        year_status = "Passed"
-        year_message = f"GIS heading evidence supports Period Year {year}."
-    elif detected_years:
-        year_status = "Failed"
-        year_message = f"GIS heading evidence shows year(s) {', '.join(map(str, detected_years))}, not Intake Period Year {year}."
+    year_item = next(
+        (item for item in extracted_items if item.get("category") == "profile" and item.get("field_name") == "gis_reporting_year"),
+        None,
+    )
+    if year_item and int(year_item.get("confidence_score") or 0) >= 65:
+        detected_year = int(year_item.get("normalized_value") or year_item.get("value_text") or 0)
+        year_status = "Passed" if detected_year == year else "Failed"
+        year_message = f"Authoritative GIS heading/profile evidence shows reporting year {detected_year}; Intake Period Year is {year}."
     else:
-        year_status = "Needs Review"
-        year_message = f"No clear 'FOR THE YEAR' GIS heading was detected for Intake Period Year {year}."
+        detected_years = extract_gis_period_years(all_text)
+        if year in detected_years:
+            year_status = "Passed"
+            year_message = f"GIS heading evidence supports Period Year {year}."
+        elif detected_years:
+            year_status = "Needs Review"
+            year_message = f"Weak GIS year-like evidence shows {', '.join(map(str, detected_years))}; no authoritative GIS heading/profile year was recovered."
+        else:
+            year_status = "Needs Review"
+            year_message = f"No authoritative GIS reporting-year evidence was recovered for Intake Period Year {year}."
     validations.append({
         "rule_name": "GIS Period Year",
         "status": year_status,
@@ -1061,24 +1177,38 @@ def validate_gis_document(pages: List[Dict], metadata: Dict) -> List[Dict]:
     ]
     validations.append({
         "rule_name": "SEC Acceptance / QR Cover",
-        "status": "Detected" if acceptance_pages else "Passed",
+        "status": "Detected" if acceptance_pages else "Needs Review",
         "message": (
             f"Likely SEC acceptance/QR cover detected on {format_page_numbers(acceptance_pages)}; "
             "excluded from GIS completeness."
             if acceptance_pages
-            else "No likely SEC acceptance/QR cover detected; review remains content-based."
+            else "No SEC acceptance/QR cover was detected. This optional item does not affect GIS completeness."
         ),
         "suggested_revert_reason": "",
     })
 
     quality_failed = [page for page in pages if page.get("image_quality_flag") == "Failed"]
     quality_warning = [page for page in pages if page.get("image_quality_flag") == "Warning"]
+    critical_profile_fields = {"sec_registration_no", "gis_reporting_year"}
+    recovered_critical = {
+        item.get("field_name")
+        for item in extracted_items
+        if item.get("category") == "profile" and int(item.get("confidence_score") or 0) >= 65
+    }
+    noisy_profile_text = any(
+        page.get("page_type") == "Corporate / Profile / Meeting Information"
+        and (page.get("extraction_source") == "OCR Fallback" or _processing_text(page).count("\ufffd") >= 2)
+        for page in pages
+    )
+    has_ocr_uncertainty = bool(critical_profile_fields - recovered_critical) and bool(
+        quality_failed or quality_warning or noisy_profile_text
+    )
     validations.append({
         "rule_name": "GIS Image Quality",
-        "status": "Failed" if quality_failed else "Warning" if quality_warning else "Passed",
+        "status": "Needs Review" if has_ocr_uncertainty else "Warning" if quality_warning else "Passed",
         "message": (
-            f"{len(quality_failed)} page(s) have very low extracted text."
-            if quality_failed
+            "Text extraction is partially usable, but one or more critical GIS fields/sections could not be reliably recovered."
+            if has_ocr_uncertainty
             else f"{len(quality_warning)} page(s) have low extracted text; review Text Layer/OCR source."
             if quality_warning
             else "Extracted text is adequate for preliminary GIS review."
@@ -1341,17 +1471,29 @@ def analyze_pages(raw_pages: List[Dict], metadata: Dict, company_master: Dict) -
     analyzed = []
     company_name = metadata.get("company_name") or company_master.get("company_name", "")
     period_year = int(metadata.get("period_covered_year") or company_master.get("period_covered_year", 0))
+    previous_page_type = ""
+    previous_page_number = None
     for page in raw_pages:
         text = _processing_text(page)
         page_type = page.get("page_type") or (
             classify_gis_page(text) if is_gis_submission(metadata) else classify_page(text)
         )
+        page_number = page.get("page_number")
+        if (
+            is_gis_submission(metadata)
+            and page_type == "Other / Unclassified"
+            and previous_page_type in {"Directors / Officers", "Stockholders' Information"}
+            and previous_page_number is not None
+            and page_number == previous_page_number + 1
+            and _gis_continuation_compatible(_gis_text(text).lower(), previous_page_type)
+        ):
+            page_type = previous_page_type
         flag = page.get("image_quality_flag") or quality_flag(text)
         text_length = page.get("text_length")
         if text_length is None:
             text_length = len(text.strip())
         analyzed.append({
-            "page_number": page.get("page_number"),
+            "page_number": page_number,
             "page_type": page_type,
             "orientation": page.get("orientation", "Portrait"),
             "extracted_text": text,
@@ -1365,6 +1507,8 @@ def analyze_pages(raw_pages: List[Dict], metadata: Dict, company_master: Dict) -
             "rotation_degrees": page.get("rotation_degrees", page.get("rotation", 0)) or 0,
             "text_length": text_length,
         })
+        previous_page_type = page_type
+        previous_page_number = page_number
     return analyzed
 
 

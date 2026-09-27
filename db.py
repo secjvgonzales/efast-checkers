@@ -82,6 +82,27 @@ def init_db() -> None:
         review_status TEXT,
         confidence REAL
     );
+    CREATE TABLE IF NOT EXISTS gis_extracted_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id INTEGER,
+        category TEXT,
+        field_name TEXT,
+        display_label TEXT,
+        value_text TEXT,
+        normalized_value TEXT,
+        source_page INTEGER,
+        evidence TEXT,
+        confidence_score INTEGER,
+        confidence_label TEXT,
+        review_status TEXT,
+        reviewer_edited INTEGER DEFAULT 0,
+        reviewed_value TEXT,
+        metadata_json TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_gis_extracted_items_document
+        ON gis_extracted_items(document_id, category, source_page);
     CREATE TABLE IF NOT EXISTS reviewer_actions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         document_id INTEGER UNIQUE,
@@ -228,7 +249,7 @@ def delete_document_records(document_id: int) -> bool:
     try:
         cur = conn.cursor()
         cur.execute("BEGIN")
-        for table in ["reviewer_actions", "extracted_figures", "validations", "page_analysis"]:
+        for table in ["reviewer_actions", "gis_extracted_items", "extracted_figures", "validations", "page_analysis"]:
             cur.execute(f"DELETE FROM {table} WHERE document_id = ?", (document_id,))
         cur.execute("DELETE FROM documents WHERE id = ?", (document_id,))
         deleted = cur.rowcount > 0
@@ -263,6 +284,47 @@ def save_reviewer_action(document_id: int, remarks: str, recommendation: str, re
             """,
             (document_id, remarks, recommendation, revert_reason, datetime.now().isoformat(timespec="seconds")),
         )
+
+
+def replace_gis_extracted_items(document_id: int, items: List[Dict]) -> None:
+    conn = get_connection()
+    cur = conn.cursor()
+    now = datetime.now().isoformat(timespec="seconds")
+    cur.execute("DELETE FROM gis_extracted_items WHERE document_id = ?", (document_id,))
+    for item in items:
+        metadata = item.get("metadata_json")
+        if isinstance(metadata, (dict, list)):
+            metadata = json.dumps(metadata)
+        cur.execute(
+            """
+            INSERT INTO gis_extracted_items (
+                document_id, category, field_name, display_label, value_text, normalized_value,
+                source_page, evidence, confidence_score, confidence_label, review_status,
+                reviewer_edited, reviewed_value, metadata_json, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                document_id,
+                item.get("category"),
+                item.get("field_name"),
+                item.get("display_label"),
+                item.get("value_text"),
+                item.get("normalized_value"),
+                item.get("source_page"),
+                item.get("evidence"),
+                item.get("confidence_score"),
+                item.get("confidence_label"),
+                item.get("review_status"),
+                int(bool(item.get("reviewer_edited", False))),
+                item.get("reviewed_value", ""),
+                metadata or "",
+                now,
+                now,
+            ),
+        )
+    conn.commit()
+    conn.close()
 
 
 def update_gis_bod_routing(document_id: int, page_number: Optional[int]) -> None:
