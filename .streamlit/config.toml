@@ -9,8 +9,8 @@ port = 5000
 gatherUsageStats = false
 
 [theme]
-primaryColor = "#0f5b3f"
-backgroundColor = "#f6f8f6"
+primaryColor = "#0E5D3F"
+backgroundColor = "#F4F8F6"
 secondaryBackgroundColor = "#ffffff"
-textColor = "#17231f"
+textColor = "#0F172A"
 font = "sans serif"

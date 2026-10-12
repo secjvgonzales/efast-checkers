@@ -6,35 +6,153 @@ import pandas as pd
 import streamlit as st
 
 
+STATUS_TONES = {
+    "Passed": ("#D9F2E6", "#0E5D3F"),
+    "Accepted": ("#D9F2E6", "#0E5D3F"),
+    "Accept": ("#D9F2E6", "#0E5D3F"),
+    "Reviewed": ("#D9F2E6", "#0E5D3F"),
+    "Corrected": ("#D9F2E6", "#0E5D3F"),
+    "Detected": ("#D9F2E6", "#0E5D3F"),
+    "Present": ("#D9F2E6", "#0E5D3F"),
+    "Ready for Quick Validation": ("#D9F2E6", "#0E5D3F"),
+    "Warning": ("#FFF7D6", "#92400E"),
+    "Needs Review": ("#FFF7D6", "#92400E"),
+    "Check Source": ("#FFF7D6", "#92400E"),
+    "Conditional": ("#FFF7D6", "#92400E"),
+    "Failed": ("#FEE2E2", "#B91C1C"),
+    "Revert": ("#FEE2E2", "#B91C1C"),
+    "Reverted": ("#FEE2E2", "#B91C1C"),
+    "Rejected": ("#FEE2E2", "#B91C1C"),
+    "Missing": ("#FEE2E2", "#B91C1C"),
+    "Not Detected": ("#E8EEF7", "#1E3A8A"),
+    "Not Present": ("#E8EEF7", "#1E3A8A"),
+    "Pending": ("#E8EEF7", "#1E3A8A"),
+}
+
+
 def status_badge(status: str) -> str:
     status = status or "Needs Review"
-    colors = {
-        "Passed": ("#d9f7e8", "#0f6b43"),
-        "Warning": ("#fff7d9", "#856404"),
-        "Failed": ("#fde8e8", "#b91c1c"),
-        "Needs Review": ("#e8eef7", "#1a3a6b"),
-    }
-    bg, fg = colors.get(status, ("#f0f0f0", "#333"))
-    return f"<span class='badge' style='background:{bg};color:{fg}'>{status}</span>"
+    bg, fg = STATUS_TONES.get(status, ("#F1F5F9", "#334155"))
+    safe = html.escape(str(status))
+    return f"<span class='badge' style='background:{bg};color:{fg}'>{safe}</span>"
 
 
 def recommendation_badge(rec: str) -> str:
-    colors = {
-        "Accept": ("#d9f7e8", "#0f6b43"),
-        "Revert": ("#fde8e8", "#b91c1c"),
-        "Needs Review": ("#e8eef7", "#1a3a6b"),
-    }
-    bg, fg = colors.get(rec, ("#f5f5f5", "#555"))
-    return f"<span class='badge' style='background:{bg};color:{fg};font-size:.78rem;padding:.2rem .55rem;'>{rec}</span>"
+    return status_badge(rec or "Needs Review")
 
 
-def metric_card(label: str, value, caption: str = "") -> None:
+def metric_card(label: str, value, caption: str = "", icon: str = "", tone: str = "green") -> None:
+    safe_label = html.escape(str(label))
+    safe_value = html.escape(str(value))
+    safe_caption = html.escape(str(caption or ""))
+    safe_icon = html.escape(str(icon or ""))
     st.markdown(
         f"""
-        <div class="metric-card">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-            <div class="metric-caption">{caption}</div>
+        <div class="metric-card metric-card--{tone}">
+            <div class="metric-card-top">
+                <div class="metric-label">{safe_label}</div>
+                <div class="metric-icon">{safe_icon}</div>
+            </div>
+            <div class="metric-value">{safe_value}</div>
+            <div class="metric-caption">{safe_caption}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def page_header(section: str, title: str, subtitle: str = "", badge: str = "") -> None:
+    safe_section = html.escape(str(section or ""))
+    safe_title = html.escape(str(title or ""))
+    safe_subtitle = html.escape(str(subtitle or ""))
+    badge_html = f"<span class='page-badge'>{html.escape(str(badge))}</span>" if badge else ""
+    st.markdown(
+        f"""
+        <div class="page-header">
+            <div class="eyebrow">{safe_section}</div>
+            <div class="page-title-row"><h1>{safe_title}</h1>{badge_html}</div>
+            <p>{safe_subtitle}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def section_heading(title: str, subtitle: str = "", icon: str = "") -> None:
+    st.markdown(
+        f"""
+        <div class="section-heading">
+            <div class="section-icon">{html.escape(str(icon or ''))}</div>
+            <div>
+                <h3>{html.escape(str(title))}</h3>
+                <p>{html.escape(str(subtitle or ''))}</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def info_card(title: str, body: str, tone: str = "mint", icon: str = "") -> None:
+    st.markdown(
+        f"""
+        <div class="info-card info-card--{tone}">
+            <div class="info-card-icon">{html.escape(str(icon or ''))}</div>
+            <div><strong>{html.escape(str(title))}</strong><br><span>{html.escape(str(body))}</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def empty_state(title: str, body: str) -> None:
+    st.markdown(
+        f"""
+        <div class="empty-state">
+            <strong>{html.escape(str(title))}</strong>
+            <p>{html.escape(str(body))}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def metadata_strip(fields: Iterable) -> None:
+    items = []
+    for label, value, icon in fields:
+        items.append(
+            "<div class='metadata-item'>"
+            f"<div class='metadata-icon'>{html.escape(str(icon or ''))}</div>"
+            "<div>"
+            f"<span>{html.escape(str(label))}</span>"
+            f"<strong>{html.escape(str(value if value not in (None, '') else '—'))}</strong>"
+            "</div></div>"
+        )
+    st.markdown(f"<div class='metadata-strip'>{''.join(items)}</div>", unsafe_allow_html=True)
+
+
+def validation_card(title: str, status: str, message: str = "", detail: str = "") -> None:
+    bg, fg = STATUS_TONES.get(status or "Needs Review", ("#F1F5F9", "#334155"))
+    detail_html = f"<small>{html.escape(str(detail))}</small>" if detail else ""
+    st.markdown(
+        f"""
+        <div class="validation-card" style="border-left-color:{fg};">
+            <div>{status_badge(status)} <strong>{html.escape(str(title))}</strong></div>
+            <p>{html.escape(str(message or ''))}</p>
+            {detail_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def timeline_item(title: str, subtitle: str = "", status: str = "") -> None:
+    bg, fg = STATUS_TONES.get(status or "Passed", ("#D9F2E6", "#0E5D3F"))
+    st.markdown(
+        f"""
+        <div class="timeline-item">
+            <div class="timeline-dot" style="background:{fg};"></div>
+            <div><strong>{html.escape(str(title))}</strong><br><span>{html.escape(str(subtitle or ''))}</span></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -149,10 +267,4 @@ def reviewing_banner(document: Optional[Dict]) -> None:
             ("Corporation Type", document.get("corporation_type", "—")),
             ("Period Covered", document.get("period_covered", "—")),
         ]
-    with st.container(border=True):
-        st.caption("Currently Reviewing")
-        columns = st.columns([2.2] + [1.15] * (len(fields) - 1))
-        for column, (label, value) in zip(columns, fields):
-            with column:
-                st.caption(label)
-                st.write(value if value not in (None, "") else "—")
+    metadata_strip([(label, value, "") for label, value in fields])

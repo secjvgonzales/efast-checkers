@@ -3,7 +3,7 @@ import streamlit as st
 
 from db import query
 from storage import get_documents, is_demo_document
-from ui_helpers import format_timestamp_pst, metric_card, recommendation_badge
+from ui_helpers import format_timestamp_pst, metric_card, page_header, recommendation_badge, section_heading, status_badge, timeline_item
 
 
 REPORT_TYPES = ("AFS", "GIS")
@@ -181,14 +181,15 @@ def _render_summary_cards(report_view, documents, outcomes, validation_rows, fig
             ),
         ]
 
+    icons = ["▦", "▤", "▥", "!", "✓", "×"]
     columns = st.columns(6)
-    for column, card in zip(columns, cards):
+    for column, card, icon in zip(columns, cards, icons):
         with column:
-            metric_card(*card)
+            metric_card(*card, icon=icon)
 
 
 def _render_recent_queue(documents, recommendations):
-    st.subheader("Recent Document Queue")
+    section_heading("Recent Document Queue", "Stored filings available for reviewer follow-up.", "▤")
     if not documents:
         st.info("No stored documents match the selected Report View.")
         return
@@ -244,7 +245,7 @@ def _render_recent_queue(documents, recommendations):
 
 
 def _render_reports_by_type(report_view, documents):
-    st.subheader("Reports by Type")
+    section_heading("Report Type Distribution", "Counts use currently stored documents only.", "▥")
     selected_types = _selected_report_types(report_view, documents)
     rows = [
         {
@@ -264,7 +265,7 @@ def _render_reports_by_type(report_view, documents):
 
 
 def _render_review_outcomes(report_view, documents, outcomes):
-    st.subheader("Review Outcomes by Report Type")
+    section_heading("Review Outcomes", "Latest saved reviewer recommendations by report type.", "✓")
     selected_types = _selected_report_types(report_view, documents)
     rows = []
     for report_type in selected_types:
@@ -296,7 +297,7 @@ def _render_review_outcomes(report_view, documents, outcomes):
 
 
 def _render_validation_issues(report_view, documents, validation_rows):
-    st.subheader("Top Validation Issues")
+    section_heading("Top Validation Issues", "Warning, Failed, and Needs Review validation records.", "!")
     selected_ids = {document["id"] for document in documents}
     rows = [
         row for row in validation_rows
@@ -322,14 +323,11 @@ def _render_validation_issues(report_view, documents, validation_rows):
 
 
 def render():
-    st.header("Dashboard")
-    st.caption(
-        "Executive overview of AFS and GIS intake, validation, and reviewer operations."
-    )
-    st.markdown(
-        "<span class='badge' style='background:#d9f7e8;color:#0f6b43'>Live DB Data</span> "
-        "All metrics, charts, and queues below reflect records currently stored in the database.",
-        unsafe_allow_html=True,
+    page_header(
+        "DASHBOARD",
+        "Dashboard",
+        "Executive overview of AFS and GIS intake, validation, and reviewer operations.",
+        "Live DB Data",
     )
 
     all_documents = get_documents()
@@ -353,7 +351,21 @@ def render():
         validation_rows,
         figure_rows,
     )
-    _render_recent_queue(documents, recommendations)
+    main_col, activity_col = st.columns([2.3, 1], gap="large")
+    with main_col:
+        _render_recent_queue(documents, recommendations)
+    with activity_col:
+        section_heading("Recent Stored Activity", "Derived from current document records.", "◷")
+        if documents:
+            for document in documents[:6]:
+                source = "Demo" if is_demo_document(document) else "Uploaded"
+                timeline_item(
+                    f"{document.get('report_type') or 'Report'} filing available",
+                    f"{document.get('company_name')} · {source} · {format_timestamp_pst(document.get('uploaded_at') or '')}",
+                    recommendations.get(document["id"], "Pending"),
+                )
+        else:
+            st.info("No stored activity for the selected view.")
 
     top_left, top_right = st.columns([1, 1])
     with top_left:
